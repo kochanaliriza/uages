@@ -14,6 +14,7 @@ import time
 import pandas as pd
 import requests
 
+from .. import ssl_ipucu
 from ..config import PATHS
 
 API = "https://re.jrc.ec.europa.eu/api/v5_3"
@@ -43,7 +44,7 @@ def _get(endpoint: str, params: dict) -> dict:
         except Exception as e:  # noqa: BLE001
             err = e
             time.sleep(3 * (i + 1))
-    raise RuntimeError(f"PVGIS hatasi {endpoint}: {err}")
+    raise RuntimeError(f"PVGIS hatasi {endpoint}: {err}{ssl_ipucu(err)}")
 
 
 def _parse_time(s: pd.Series) -> pd.DatetimeIndex:

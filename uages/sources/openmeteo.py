@@ -14,6 +14,7 @@ import time
 import pandas as pd
 import requests
 
+from .. import ssl_ipucu
 from ..config import PATHS
 
 ARCHIVE = "https://archive-api.open-meteo.com/v1/archive"
@@ -71,7 +72,7 @@ def _get(url: str, params: dict, cache_hours: float | None = None, retries: int 
         except Exception as e:  # noqa: BLE001
             err = e
             time.sleep(3 * (i + 1))
-    raise RuntimeError(f"Open-Meteo hatasi {url}: {err}")
+    raise RuntimeError(f"Open-Meteo hatasi {url}: {err}{ssl_ipucu(err)}")
 
 
 def _to_frame(hourly: dict, suffix: str = "") -> pd.DataFrame:

@@ -150,7 +150,9 @@ def main(argv=None):
     except FileNotFoundError as e:
         print(f"HATA: {e}")
         sys.exit(2)
-    print(f"Ulke: {ACTIVE['code']}  ({PATHS['country']})")
+    from . import SERTIFIKA_DURUMU
+    print(f"Ulke: {ACTIVE['code']}  ({PATHS['country']})  HTTPS sertifika deposu: "
+          f"{'Windows/isletim sistemi' if SERTIFIKA_DURUMU == 'aktif' else 'Python (certifi) — truststore ' + SERTIFIKA_DURUMU}")
     eski = eski_duzen()
     if eski:
         print(f"HATA: eski klasor yapisi bulundu ({', '.join(eski)}). Once TASIMA.bat ile verileri countries\\{ACTIVE['code']}\\ "
