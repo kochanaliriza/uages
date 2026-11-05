@@ -249,7 +249,8 @@ def main() -> None:
     finally:
         (yedek / "tasima_kaydi.json").write_text(json.dumps({"tasinan": kayit, "atlanan": atlanan}, ensure_ascii=False, indent=1),
                                                  encoding="utf-8")
-    bos_klasorleri_sil(ROOT / "data")
+    for k in ["data", "outputs", "logs"]:
+        bos_klasorleri_sil(ROOT / k)
     for n in notlar:
         print("  " + n)
     if atlanan:
