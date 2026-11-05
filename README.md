@@ -53,6 +53,22 @@ schtasks /Create /SC HOURLY /MO 3 /ST 06:10 /TN UA_GES_Tahmin /TR "\"C:\Users\ek
 Kaldırmak için: `schtasks /Delete /TN UA_GES_Tahmin /F`. Günlük: `countries/UA/logs/guncelle.log`, hata: `countries/UA/logs/son_hata.txt`.
 Zamanlanmış görev `guncelle.bat`'ı çağırdığı için yükseltmede değiştirilmesi gerekmez.
 
+## Macaristan (pilot, 2026-11-05)
+Hedef: ENTSO-E sayaçlı GES gerçekleşeni (A75 B16, çatı sistemleri hariç). Kıyas: MAVIR gün öncesi tahmini (A69).
+Kapasite: GEM Global Solar Power Tracker (Şubat 2026), 795 santral / 4.061 MW → 8 hava bölgesi (`tools/hu_girdi_hazirla.py`).
+Ayrıntı: `docs/superpowers/specs/2026-11-05-macaristan-adaptoru-design.md`.
+
+| Dosya | Ne zaman |
+|---|---|
+| `ENVANTER_HU.bat` | ENTSO-E veri envanteri ve MAVIR tahmin isabeti raporu (`countries\HU\envanter_raporu.md`) |
+| `CALISTIR_HU.bat` | Tam çalışma: ENTSO-E deposu (ilk seferde 2019'dan), geçmiş analiz, 7 gün, 12 ay, panel |
+| `HU_ARSIV_INDIR.bat` | Bir kez: ufka göre arşiv tahminleri + uydu (~7.900 istek eşdeğeri, ~1 gün limit; kaldığı yerden devam eder) |
+| `python -m uages optimize --ulke HU` | Arşiv indikten sonra: MAVIR'e karşı D+1…D+7 test raporu (`countries\HU\outputs\optimizasyon_raporu.csv`) |
+| `guncelle_HU.bat` | Sessiz güncelleme (zamanlanmış görev) |
+| `python tests/hu_duman_testi.py` | Sahte ENTSO-E/Open-Meteo/PVGIS ile uçtan uca test (ağ gerekmez) |
+
+ENTSO-E token: `entsoe_token.txt` (proje kökü) ya da `ENTSOE_TOKEN`. Saatler Budapeşte saati; ENTSO-E 15 dk → saatlik ortalama.
+
 ## Klasör yapısı
 ```
 uages/                     ortak kod (ülke bilmez)

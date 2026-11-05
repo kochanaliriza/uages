@@ -1,0 +1,113 @@
+{
+  "_aciklama": "Macaristan GES (ENTSO-E sayacli) uretim/tahmin ayarlari. UA config'i ile ayni yapi; ulkeye ozgu alanlar: country, entsoe, inputs, local_tz, history, optimize.",
+  "country": {
+    "code": "HU",
+    "adapter": "hu",
+    "_not": "Hedef: ENTSO-E A75 B16 gerceklesen (sayacli, cati haric). Kiyas: MAVIR gun oncesi (A69 A01)."
+  },
+  "entsoe": {
+    "eic": "10YHU-MAVIR----U",
+    "baslangic": "2019-09-01",
+    "api": "",
+    "_not": "api bos = varsayilan https://web-api.tp.entsoe.eu/api. Token: entsoe_token.txt / ENTSOE_TOKEN."
+  },
+  "ag": {
+    "ssl_dogrulama": false,
+    "_not": "false: HTTPS sertifikasi dogrulanmaz (kurumsal SSL denetimi olan ag icin, kullanici istegi 2026-11-05). Yalnizca herkese acik veri cekilir, parola/anahtar gonderilmez. Mumkunse true yapin (truststore ile Windows sertifika deposu kullanilir). Ortam degiskeni UAGES_SSL_DOGRULAMA=1/0 bunu ezer."
+  },
+  "project_name": "Macaristan GES (ENTSO-E sayacli santraller)",
+  "local_tz": "Europe/Budapest",
+  "inputs": {
+    "regions_csv": "data/input/HU_PV_BOLGELER.csv",
+    "plants_csv": "data/input/HU_PV_SANTRALLER.csv"
+  },
+  "pv": {
+    "tilt_deg": 30,
+    "azimuth_deg": 180,
+    "albedo": 0.2,
+    "albedo_snow": 0.6,
+    "gamma_pdc": -0.0035,
+    "faiman_u0": 25.0,
+    "faiman_u1": 6.84,
+    "dc_losses": 0.1,
+    "inverter_eff": 0.98,
+    "dc_ac_ratio": 1.2,
+    "iam_b0": 0.05
+  },
+  "region_overrides": {},
+  "history": {
+    "start": "2025-06-01",
+    "weather_weights": {
+      "era5": 0.6,
+      "om_archive": 0.4
+    },
+    "day_ahead_source": "om_historical_forecast",
+    "_not": "2025-06'dan: tum takvim aylari gozlenir (aylik k icin >=15 gun), Open-Meteo istek butcesi kucuk kalir."
+  },
+  "forecast": {
+    "days": 7,
+    "past_days": 3,
+    "model_weights": {
+      "ecmwf_ifs025": 0.4,
+      "icon_seamless": 0.25,
+      "gfs_seamless": 0.15,
+      "best_match": 0.2
+    },
+    "ensemble_model": "ecmwf_ifs025",
+    "band_quantiles": [
+      0.1,
+      0.9
+    ]
+  },
+  "calibration": {
+    "mode": "ufuk",
+    "season_correction": true,
+    "_season_not": "true: ufuk modunda k, kalibrasyon penceresi ile hedef gun arasindaki mevsimsel degisimle olceklenir (outputs/mevsim_k.json, python -m uages optimize ile ayda bir yenilenir). Orneklem disi kis testi 2025/26 Kas-Mar: D+1 nMAE %34,0 -> %30,9, D+7 %55,6 -> %49,8; Nis-Eki notr.",
+    "_mode_not": "\"mevcut\": tek kalibrasyon tum ufuklara (best_match gecmis tahminiyle fit). \"ufuk\": D+1..D+7 icin ayri kalibrasyon (outputs/kalibrasyon_ufuk.json, her history calismasinda yenilenir; yoksa/eskiyse otomatik mevcut'a duser). Test 2026-05..10: D+1 nMAE %10,5 -> %9,3, bias +%6 -> +%0,6; Haziran'da daha kotu (bkz. optimizasyon_raporu.csv).",
+    "window_days": 21,
+    "shape_window_days": 45,
+    "shape_shrink_n": 20,
+    "shape_clip": [
+      0.8,
+      1.25
+    ],
+    "min_model_mw": 50,
+    "curtail_ratio": 0.75
+  },
+  "longterm": {
+    "era5_years": [
+      2018,
+      2025
+    ],
+    "pvgis_years": [
+      2014,
+      2023
+    ],
+    "source_weights": {
+      "era5_clim": 0.45,
+      "pvgis_series": 0.35,
+      "pvgis_tmy": 0.2
+    },
+    "horizon_months": 12,
+    "use_seasonal": false,
+    "_seasonal_not": "SEAS5 ham GHI'si ERA5'e gore sistematik yanli (Ekim ~%27 yuksek); kendi hindcast klimatolojisi olmadan anomali cikarilamadigi icin kapali. true yapilirsa sadece gostergesel sutun eklenir.",
+    "_era5_not": "HU: 8 yil (UA 10) - ilk gun istek butcesi icin. Istenirse [2016, 2025] yapilabilir."
+  },
+  "weather_classes": {
+    "clear_kt": 0.6,
+    "cloudy_kt": 0.35
+  },
+  "csv": {
+    "sep": ";",
+    "decimal": ",",
+    "encoding": "utf-8-sig",
+    "_not": "Excel (TR) uyumlu. Programatik kullanim icin sep=',' decimal='.' yapin."
+  },
+  "optimize": {
+    "test_start": "2026-05-01",
+    "lag_days": 1,
+    "prev_runs_start": "2024-01-01",
+    "satellite_start": "2024-01-01",
+    "_not": "lag_days 1: ENTSO-E gerceklesen neredeyse aninda yayimlanir (UA/GPEE: 2). Uydu 2024'ten (istek butcesi)."
+  }
+}

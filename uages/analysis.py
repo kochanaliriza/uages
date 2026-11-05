@@ -230,7 +230,8 @@ def build_history(cfg: dict, verbose: bool = True) -> dict:
     pm = plants.merge(regions[["region", "mwp"]].rename(columns={"mwp": "region_mwp"}), on="region", how="left")
     pm["pay"] = pm["mwp"] / pm["region_mwp"]
     piv = reg_m.pivot_table(index="region", columns="ay", values="model_kalibre_mwh")
-    plant_rows = pm[["plant", "phase", "oblast", "region", "mw", "mwp", "Placeholder_Flag", "Frontline_Flag", "pay"]].copy()
+    plant_rows = pm[[c for c in ["plant", "phase", "oblast", "region", "mw", "mwp", "Placeholder_Flag", "Frontline_Flag", "pay"]
+                      if c in pm]].copy()
     for col in piv.columns:
         plant_rows[col.strftime("%Y-%m") + "_MWh"] = pm["region"].map(piv[col]) * pm["pay"]
     ycols = [c for c in plant_rows.columns if c.endswith("_MWh")]

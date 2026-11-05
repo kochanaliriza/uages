@@ -10,6 +10,7 @@ from .base import CountryAdapter
 
 REGISTRY = {
     "ua": "uages.countries.ua:UkraineAdapter",
+    "hu": "uages.countries.hu:HungaryAdapter",
 }
 _instances: dict[str, CountryAdapter] = {}
 

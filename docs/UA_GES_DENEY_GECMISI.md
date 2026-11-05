@@ -71,6 +71,14 @@ Kaynaklar: `docs/yapilan_gelistirmeler_2026-11-03.pdf` (31 Eki – 3 Kas 2026 ç
 4. Sürüm kontrolü (git yok).
 5. Haziran zayıflığı / bahar kısıtı — Mayıs 2027'den önce.
 
+## Macaristan (HU) — kayıtlar
+| Tarih | Konu | Sonuç |
+|---|---|---|
+| 2026-11-05 | ENTSO-E envanteri | Gerçekleşen 2019-09-22'den, %0 eksik, 15 dk. A68 kurulu güç 2025'te 4,0 → 8,3 GW kırılma (çatı eklendi), gerçekleşen yalnız sayaçlı. MAVIR D+1 nMAE 2026 %12,1 (tüm gündüz), Ara–Oca ~%41; gün içi %8,7 |
+| 2026-11-05 | Kapasite kaynağı | GEM Şubat 2026: 795 santral 4.061 MW, %99 kesin konum; ENTSO-E 2024 kurulu gücü 4.029 MW ile örtüşüyor |
+| 2026-11-05 | Hava noktası sayısı | 8 kapasite ağırlıklı nokta ile başlandı (1 günlük istek limiti). 15 nokta ve OSM / veriden öğrenilen ağırlık karşılaştırması bekliyor |
+
 ## Değişiklik kaydı
+- 2026-11-05: Macaristan adaptörü (HU) eklendi; UA altın test ÖZDEŞ, HU sahte veriyle uçtan uca test TAMAM.
 - 2026-11-05: v2.2 ülke adaptörü eklendi (sonuç değişmedi; altın test `tests/golden/run_golden.py`).
 - 2026-11-05: Dosya oluşturuldu (refactor + çok ülke beyin fırtınası başlangıcı).

@@ -102,7 +102,12 @@ def build(cfg: dict) -> Path:
     }
     js = json.dumps(data, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
     js = js.replace("</", "<\\/")
-    html = TEMPLATE.read_text(encoding="utf-8").replace("/*__DATA__*/null", js)
+    html = TEMPLATE.read_text(encoding="utf-8")
+    for eski, yeni in ad.panel_metin:  # ulkeye gore metin uyarlamasi (UA: bos liste, sablon aynen)
+        if eski not in html:
+            print(f"  UYARI: panel metni bulunamadi (sablon degismis olabilir): {eski[:60]!r}")
+        html = html.replace(eski, yeni)
+    html = html.replace("/*__DATA__*/null", js)
     # Yerel dosya: tam belge (standart mod). Artifact yayini icin govde-only surum ayrica yazilir.
     full = "<!doctype html>\n<html lang=\"tr\">\n<head>\n" + html + "\n</html>\n"
     fp = PATHS["out"] / "dashboard.html"
