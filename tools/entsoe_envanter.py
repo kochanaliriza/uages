@@ -59,11 +59,32 @@ class EntsoeHata(RuntimeError):
     pass
 
 
+def _dosyadan_token() -> tuple[str | None, str]:
+    """entsoe_token.txt'yi (ya da gizli uzanti hatasiyla entsoe_token.txt.txt'yi) okur. Not Defteri'nin BOM'lu UTF-8,
+    UTF-16 ('Unicode') kayitlarini, tirnaklari, bosluklari ve 'securityToken=' onekini temizler."""
+    for ad in ["entsoe_token.txt", "entsoe_token.txt.txt", "entsoe_token"]:
+        fp = ROOT / ad
+        if not fp.exists():
+            continue
+        b = fp.read_bytes()
+        if b[:2] in (b"\xff\xfe", b"\xfe\xff"):
+            txt = b.decode("utf-16")
+        else:
+            txt = b.decode("utf-8-sig", errors="replace")
+        satirlar = [x.strip().strip('"').strip("'").strip() for x in txt.replace("\ufeff", "").splitlines()]
+        satirlar = [x.split("=", 1)[1].strip() if x.lower().startswith("securitytoken=") else x for x in satirlar if x]
+        return (satirlar[0] if satirlar else None), ad
+    return None, ""
+
+
 def token() -> str:
-    t = os.environ.get("ENTSOE_TOKEN")
-    fp = ROOT / "entsoe_token.txt"
-    if not t and fp.exists():
-        t = fp.read_text(encoding="utf-8").strip()
+    t = os.environ.get("ENTSOE_TOKEN", "").strip() or None
+    kaynak = "ENTSOE_TOKEN ortam degiskeni"
+    if not t:
+        t, ad = _dosyadan_token()
+        kaynak = ad
+    if t:
+        print(f"Token: {kaynak} ({len(t)} karakter; ENTSO-E token'lari genelde 36 karakterdir)")
     if not t:
         sys.exit("HATA: ENTSO-E token yok. ENTSOE_TOKEN ortam degiskenini ayarlayin ya da proje kokune entsoe_token.txt koyun.\n"
                  "Token: transparency.entsoe.eu -> hesap -> 'RESTful API access' (bkz. README).")

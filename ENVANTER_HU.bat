@@ -5,7 +5,7 @@ cd /d "%~dp0"
 set "PY=C:\Users\ekrem\AppData\Local\Python\pythoncore-3.14-64\python.exe"
 if not exist "%PY%" set "PY=python"
 set "PYTHONIOENCODING=utf-8"
-if not exist entsoe_token.txt if "%ENTSOE_TOKEN%"=="" (
+if not exist entsoe_token.txt if not exist entsoe_token.txt.txt if "%ENTSOE_TOKEN%"=="" (
   echo  ENTSO-E token bulunamadi. Proje klasorune entsoe_token.txt dosyasi olusturup tokeni tek satir olarak yazin.
   pause
   exit /b 1
