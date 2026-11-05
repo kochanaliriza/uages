@@ -44,6 +44,7 @@ sonra `countries/UA/data/store/gpee_hourly.csv` dosyasını silin (xlsx'ten yeni
 | `python tools/check_vector_calib.py` | Optimizasyon çekirdeğinin mevcut kalibrasyonla birebir aynı sonucu verdiğini test eder | ~1,5 dk |
 | `python tests/golden/run_golden.py` | **Altın test:** kodu, dondurulmuş eski kodla (1 Kasım 2026 girdileri, sabit saat, ağ kapalı) karşılaştırır. Her kod değişikliğinden sonra çalıştırın; `ÖZDEŞ` görmelisiniz | ~2–3 dk |
 | `... --ulke XX` / `set UAGES_ULKE=XX` | Başka ülke (adaptörü eklendiğinde). Varsayılan `UA` | |
+| `ENVANTER_HU.bat` / `python tools/entsoe_envanter.py --ulke HU` | Yeni ülke pilotu, Adım 1: ENTSO-E güneş gerçekleşeni (A75), TSO gün öncesi tahmini (A69), kurulu güç (A68); kapsam/eksik/çözünürlük ve TSO D+1 isabeti raporu (`countries/HU/envanter_raporu.md`). Token: `entsoe_token.txt` ya da `ENTSOE_TOKEN`. `--ulke PL/SK/RO/MD` de çalışır | 1–3 dk |
 
 **Otomatik güncelleme (bir kez, kendiniz kurun):** PowerShell'de şu komut `guncelle.bat`'ı 06:10'dan başlayarak 3 saatte bir çalıştırır:
 ```
