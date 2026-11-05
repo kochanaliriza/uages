@@ -7,7 +7,6 @@ Her kaynak ayni PV zincirinden gecer (PVGIS serisi duzlem ici bilesenlerden). So
 """
 from __future__ import annotations
 
-import numpy as np
 import pandas as pd
 
 from .config import PATHS, normalize_weights, region_pv, rnd

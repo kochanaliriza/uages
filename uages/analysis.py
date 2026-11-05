@@ -13,7 +13,7 @@ from . import calibrate as cal
 from . import weather
 from .config import PATHS, region_pv, rnd
 from .countries import get_adapter
-from .pvmodel import run_fleet, run_pv
+from .pvmodel import run_fleet
 from .solar import interval_solar_position
 
 

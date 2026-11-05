@@ -1,7 +1,7 @@
 # UA GES Tahmin — ülke bazlı GES üretim analizi ve tahmin altyapısı (ilk ülke: Ukrayna)
 
 > **2026-11-05 — ülke adaptörü sürümü.** Kod ülkeden bağımsız hale getirildi; Ukrayna'nın verisi, ayarları ve çıktıları artık
-> `countries\UA\` altında, hava önbelleği kökteki `cache\` altında. Sonuçlar değişmedi (altın test: eski kodla 25 çıktı dosyası
+> `countries\UA\` altında, hava önbelleği kökteki `cache\` altında. Sonuçlar değişmedi (altın test: eski kodla 22 çıktı dosyası (18 CSV + 4 kalibrasyon JSON)
 > birebir aynı). Eski klasör yapısından geçiş için bir kez `TASIMA.bat` çalıştırın — bkz. **Yükseltme**.
 
 GPEE (Garantili Alıcı) saatlik GES gerçekleşen serisini hava verisiyle modelleyip:

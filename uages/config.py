@@ -67,10 +67,12 @@ def _deep_merge(base: dict, over: dict) -> dict:
 
 def load_config(path: str | Path | None = None, ulke: str | None = None) -> dict:
     """Ulkeyi etkinlestirir ve countries/<KOD>/config.json'u (ya da verilen dosyayi) okur."""
-    code = activate(ulke)
+    code = activate(ulke, mkdir=False)
     path = Path(path) if path else PATHS["country"] / "config.json"
     if not path.exists():
-        raise FileNotFoundError(f"{code} icin ayar dosyasi yok: {path}")
+        mevcut = sorted(p.parent.name for p in (ROOT / "countries").glob("*/config.json"))
+        raise FileNotFoundError(f"{code} icin ayar dosyasi yok: {path} (mevcut ulkeler: {', '.join(mevcut) or '-'})")
+    activate(code)  # klasorleri yalnizca gecerli ulke icin olustur
     with open(path, encoding="utf-8") as f:
         return json.load(f)
 

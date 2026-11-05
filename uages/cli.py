@@ -145,7 +145,11 @@ def main(argv=None):
     ap.add_argument("--config", default=None, help="ayar dosyasi (varsayilan countries/<ULKE>/config.json)")
     ap.add_argument("--ulke", default=None, help="ulke kodu (varsayilan UAGES_ULKE ya da UA)")
     a = ap.parse_args(argv)
-    cfg = load_config(a.config, a.ulke)
+    try:
+        cfg = load_config(a.config, a.ulke)
+    except FileNotFoundError as e:
+        print(f"HATA: {e}")
+        sys.exit(2)
     print(f"Ulke: {ACTIVE['code']}  ({PATHS['country']})")
     t0 = time.time()
     try:

@@ -8,7 +8,6 @@ Zaman etiketleri (HH:10 vb.) saat basina yuvarlanir ve aralik basi kabul edilir;
 from __future__ import annotations
 
 import hashlib
-import os
 import json
 import time
 
