@@ -83,12 +83,23 @@ def token() -> str:
     if not t:
         t, ad = _dosyadan_token()
         kaynak = ad
+        if not t and ad:
+            boyut = (ROOT / ad).stat().st_size
+            print(f"UYARI: {ROOT / ad} var ama icinde token okunamadi ({boyut} bayt). "
+                  "Not Defteri'nde yapistirdiktan sonra Ctrl+S ile kaydedildiginden emin olun.")
+    if not t and sys.stdin and sys.stdin.isatty():
+        try:
+            t = input("ENTSO-E token'inizi buraya yapistirip Enter'a basin (sag tik = yapistir): ").strip().strip('"').strip("'")
+        except EOFError:
+            t = ""
+        if t:
+            (ROOT / "entsoe_token.txt").write_text(t + "\n", encoding="utf-8")
+            kaynak = "elle girildi, entsoe_token.txt'ye kaydedildi"
     if t:
         print(f"Token: {kaynak} ({len(t)} karakter; ENTSO-E token'lari genelde 36 karakterdir)")
-    if not t:
-        sys.exit("HATA: ENTSO-E token yok. ENTSOE_TOKEN ortam degiskenini ayarlayin ya da proje kokune entsoe_token.txt koyun.\n"
-                 "Token: transparency.entsoe.eu -> hesap -> 'RESTful API access' (bkz. README).")
-    return t
+        return t
+    sys.exit("HATA: ENTSO-E token yok. ENTSOE_TOKEN ortam degiskenini ayarlayin ya da proje kokune entsoe_token.txt koyun.\n"
+             f"Aranan klasor: {ROOT}\nToken: transparency.entsoe.eu -> hesap -> 'RESTful API access' (bkz. README).")
 
 
 def iste(api: str, tok: str, params: dict, deneme: int = 5) -> bytes | None:
