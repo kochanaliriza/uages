@@ -1,6 +1,6 @@
 # Ülke adaptörü (Adım 0) — tasarım
 
-Tarih: 2026-11-05 · Durum: kullanıcı onayı bekliyor
+Tarih: 2026-11-05 · Durum: onaylandı ve uygulandı (altın test: ÖZDEŞ, 25 çıktı dosyası)
 
 ## Amaç
 UA_GES_Tahmin kodunu ülkeden bağımsız hale getirmek: ortak hesap çekirdeği + ülke başına adaptör ve klasör.

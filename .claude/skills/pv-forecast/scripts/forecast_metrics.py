@@ -1,7 +1,7 @@
 """Tahmin dogrulama metrikleri: ufka / aya / hava sinifina gore nMAE, nRMSE, bias, skill score, pinball, kapsama.
 
 Kullanim (proje klasorunde):
-  python .claude/skills/pv-forecast/scripts/forecast_metrics.py outputs/gecmis_saatlik.csv \
+  python .claude/skills/pv-forecast/scripts/forecast_metrics.py countries/UA/outputs/gecmis_saatlik.csv \
       --actual actual_mw --pred model_gunoncesi_kalibre_mw forecast_mw --ref forecast_mw \
       --mask "elev>0 and not flag_curtail_model" --by month
 

@@ -35,8 +35,14 @@ dataset.py: Previous Runs (D+1..7 × model) + uydu → eğitim tablosu   optimiz
 ```
 `calibration.mode`: `"mevcut"` (varsayılan) | `"ufuk"`. Kalibrasyon matematiğini değiştirirsen `optimize.py` ile
 `calibrate.py` aynı kalmalı: `python tools/check_vector_calib.py` maks fark 0 MW vermeli.
-Ayarlar `config.json`'da; kodda sabit parametre ekleme, config'e koy. Dashboard (`dashboard.py` +
-`dashboard_template.html`) hesap yapmaz, yalnızca `outputs/` CSV'lerini ve `model_durumu.json`'u gömüp gösterir;
+**Ülke adaptörü (2026-11-05):** ülkeye özgü her şey `uages/countries/<kod>.py` adaptöründe (hedef deposu, bölge/santral
+yükleyicileri, kıyas tahmini etiketi, Eki–Ara k aynası, harita sınırı); ortak çekirdek ülke bilmez. Veri/ayar/çıktı
+`countries/<KOD>/` altında, hava önbelleği kökte `cache/`. Ortak koda `GPEE`, `Kyiv` gibi ülke adı yazma; adaptöre koy.
+**Altın test:** sonuç değiştirmemesi gereken her değişiklikten (refactor, temizlik, yeni ülke) sonra
+`python tests/golden/run_golden.py` → `SONUC: OZDES`. Bilinçli olarak sonuç değiştiren bir iyileştirmede fark beklenir;
+o zaman farkı ufka göre raporla ve `UA_GES_DENEY_GECMISI.md`'ye işle (tekrar denemeyi önler).
+Ayarlar `countries/<KOD>/config.json`'da; kodda sabit parametre ekleme, config'e koy. Dashboard (`dashboard.py` +
+`dashboard_template.html`) hesap yapmaz, yalnızca `countries/<KOD>/outputs/` CSV'lerini ve `model_durumu.json`'u gömüp gösterir;
 paneldeki tüm saatler Kyiv saatidir (tarayıcı saat dilimi kullanılmaz).
 
 ## Değişmez kurallar ve nedenleri
@@ -81,14 +87,14 @@ paneldeki tüm saatler Kyiv saatidir (tarayıcı saat dilimi kullanılmaz).
    öğrenir. Böylece ML çökse/yetersiz veriyle eğitilse bile tahmin fiziksel olarak makul kalır ve
    uzun vade (ML'in görmediği iklim) etkilenmez. Ayrıntı: `references/ml-residual.md`.
 
-10. **Önbellek ve API nezaketi.** Arşiv yanıtları kalıcı önbelleklenir (`data/cache/`); yeni çekim
+10. **Önbellek ve API nezaketi.** Arşiv yanıtları kalıcı önbelleklenir (`cache/`, tüm ülkeler ortak); yeni çekim
     yazarken `_get` yardımcılarını kullan, toplu çekimi tarih parçalarına böl, 429'da bekle.
     Open-Meteo ücretsiz katmanı ticari olmayan kullanım içindir ve günlük istek limiti vardır.
 
 ## Değişiklik yaparken iş akışı
 1. İlgili referans dosyasını oku; değişecek modülün docstring'indeki zaman/birim kuralını kontrol et.
-2. Değişikliği küçük tut; `config.json`'a yeni parametre ekliyorsan varsayılanı mevcut davranışı korusun.
-3. `python -m uages history` (ya da ilgili komut) çalıştır; `outputs/model_durumu.json` içinde
+2. Değişikliği küçük tut; `countries/<KOD>/config.json`'a yeni parametre ekliyorsan varsayılanı mevcut davranışı korusun.
+3. `python -m uages history` (ya da ilgili komut) çalıştır; `countries/<KOD>/outputs/model_durumu.json` içinde
    `zaman_kaymasi_korelasyon` tepe noktası 0'da mı, `tahmin_dogrulama.csv` önce/sonra nasıl — kıyasla.
 4. Sonucu raporlarken: hangi dönem, kaç saat, hangi maske, hangi normalizasyon, hangi referansa göre.
    İyileşme küçükse (≲0,3 puan nMAE) gürültü olabileceğini söyle; mümkünse aylara göre tutarlılığa bak.

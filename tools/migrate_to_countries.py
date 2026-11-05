@@ -202,7 +202,7 @@ def main() -> None:
         print("  " + n)
     if atlanan:
         print(f"  UYARI: hedefte zaten olan {len(atlanan)} dosya atlandi (kaynakta duruyor), ilk 5: {atlanan[:5]}")
-    print(f"Tasima tamam: {len(kayit)} oge. Kayit: {yedek.relative_to(ROOT)}\\tasima_kaydi.json")
+    print(f"Tasima tamam: {len(kayit)} oge. Kayit: {(yedek / 'tasima_kaydi.json').relative_to(ROOT)}")
     kontrol()
     print("Dogrulama icin (2-3 dk): python tests/golden/run_golden.py")
 

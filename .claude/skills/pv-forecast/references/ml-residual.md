@@ -35,7 +35,7 @@ bayrakları, tüm veri üzerinden hesaplanmış normalizasyon istatistikleri. He
   sistematik bir eksik vardır (ör. montaj karışımı); önce onu düzelt.
 
 ## Üretime alma
-- Model dosyası ve özellik listesi sürümlenir (`data/models/<tarih>/`). Eğitim dönemi ve metrikler yanına yazılır.
+- Model dosyası ve özellik listesi sürümlenir (`countries/<KOD>/data/models/<tarih>/`). Eğitim dönemi ve metrikler yanına yazılır.
 - ML çıktısı yoksa ya da özellik eksikse tahmin MOS-lite'a düşer (fallback), bu durum loglanır.
 - Uzun vadede (longterm) ML kullanılmaz: ML'in gördüğü dağılımın dışındadır.
 - Yeni bağımlılık (lightgbm, scikit-learn) `requirements.txt`'e eklenir. Ortam Windows. `.bat` dosyaları Python 3.14
