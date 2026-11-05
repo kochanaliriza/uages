@@ -196,9 +196,21 @@ def cek(api, tok, eic, belge, bas: pd.Timestamp, bit: pd.Timestamp) -> pd.DataFr
     params = {k: v for k, v in b.items()}
     params["in_Domain"] = eic
     if b["documentType"] == "A68":
-        params["periodStart"], params["periodEnd"] = f"{bas.year}01010000", f"{bit.year + 1}01010000"
-        raw = iste(api, tok, params)
-        return ayristir(raw) if raw else pd.DataFrame(columns=["time_utc", "mw", "cozunurluk"])
+        # 14.1.A: istek araligi en fazla 1 yil -> yil yil
+        yillar = []
+        for y in range(bas.year, bit.year + 2):
+            params["periodStart"], params["periodEnd"] = f"{y}01010000", f"{y + 1}01010000"
+            print(f"    {belge}: {y}", flush=True)
+            try:
+                raw = iste(api, tok, params)
+            except EntsoeHata as e:
+                print(f"      {y}: {e}")
+                continue
+            if raw:
+                yillar.append(ayristir(raw))
+        if not yillar:
+            return pd.DataFrame(columns=["time_utc", "mw", "cozunurluk"])
+        return pd.concat(yillar).drop_duplicates("time_utc", keep="last").sort_values("time_utc").reset_index(drop=True)
     parts = []
     sinirlar = list(pd.date_range(bas, bit, freq="YS"))
     sinirlar = ([bas] if not sinirlar or sinirlar[0] > bas else []) + sinirlar + [bit]
@@ -324,6 +336,15 @@ def main() -> None:
         rap += ["## Gerçekleşen üretim (yıllık)", "", md(yil.round(2).rename_axis("yil")), "",
                 f"Gece (güneş −6°'nin altında) ortalaması {gece.mean():.1f} MW, maks {gece.max():.1f} MW "
                 "(sıfırdan belirgin farklıysa seri net/tahmini olabilir veya zaman kayması vardır).", ""]
+        if "tso_gun_oncesi" in saat and "tso_gun_ici" in saat:
+            d, i_ = saat["tso_gun_oncesi"], saat["tso_gun_ici"]
+            jj = pd.DataFrame({"d": d, "i": i_}).dropna()
+            ayni = float((np.abs(jj["d"] - jj["i"]) < 0.01).mean() * 100) if len(jj) else float("nan")
+            ii = nmae_tablo(g, i_, elev, lambda i: yerel(i, u["tz"]).year)
+            rap += ["## Gün içi tahmin (A69/A40)", "",
+                    f"Gün öncesi ile aynı değerdeki saat oranı: %{ayni:.1f} "
+                    "(~%100 ise ENTSO-E gün içi diye gün öncesini tekrar yayımlıyor demektir; ayrı bir bilgi taşımaz).", "",
+                    md(ii.rename_axis("yil")), ""]
         if "tso_gun_oncesi" in saat:
             f = saat["tso_gun_oncesi"]
             yl = nmae_tablo(g, f, elev, lambda i: yerel(i, u["tz"]).year)
