@@ -12,7 +12,7 @@ import pandas as pd
 from . import calibrate as cal
 from . import weather
 from .config import PATHS, region_pv
-from .inputs import load_gpee, load_plants, load_regions
+from .countries import get_adapter
 from .pvmodel import run_fleet, run_pv
 from .solar import interval_solar_position
 
@@ -57,8 +57,9 @@ def metrics(pred: pd.Series, act: pd.Series, mask: pd.Series, norm: float) -> di
 
 def build_history(cfg: dict, verbose: bool = True) -> dict:
     tz = cfg["local_tz"]
-    regions = load_regions(cfg)
-    g = load_gpee(cfg)
+    ad = get_adapter(cfg)
+    regions = ad.load_regions(cfg)
+    g = ad.load_target(cfg)
     start = pd.Timestamp(cfg["history"]["start"])
     # Depo daha eski yillari da icerebilir (tools/backfill_gpee.py); analiz donemi config'ten gelir
     g = g[g["time_local"] >= start].reset_index(drop=True)
@@ -127,7 +128,7 @@ def build_history(cfg: dict, verbose: bool = True) -> dict:
         day_mask &= df["time_local"] >= pd.Timestamp(wf_start)
     norm = float(df.loc[day_mask, "actual_mw"].mean())
     val = []
-    for lab, col in [("GPEE resmi tahmini (D+1)", "forecast_mw"),
+    for lab, col in [(ad.benchmark_label_long, "forecast_mw"),
                      ("Model · tahmin havası (Open-Meteo geçmiş tahmin) + yürüyen kalibrasyon, 2 gün gecikmeli", "model_gunoncesi_kalibre_mw"),
                      ("Model · gerçekleşen hava (ERA5/arşiv karması), yalnız kayan k (saat/bulut düzeltmesiz)", "model_kalibre_mw")]:
         if col in df:
@@ -225,7 +226,7 @@ def build_history(cfg: dict, verbose: bool = True) -> dict:
         rows.append(a)
     reg_m = pd.concat(rows).merge(regions[["region", "mwp", "mw", "lat", "lon"]], on="region")
     reg_m["SY_model_kwh_kwp"] = reg_m["model_liste_mwh"] / reg_m["mwp"]
-    plants = load_plants(cfg)
+    plants = ad.load_plants(cfg)
     pm = plants.merge(regions[["region", "mwp"]].rename(columns={"mwp": "region_mwp"}), on="region", how="left")
     pm["pay"] = pm["mwp"] / pm["region_mwp"]
     piv = reg_m.pivot_table(index="region", columns="ay", values="model_kalibre_mwh")

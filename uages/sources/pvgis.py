@@ -18,10 +18,13 @@ import requests
 from ..config import PATHS
 
 API = "https://re.jrc.ec.europa.eu/api/v5_3"
-CACHE = PATHS["cache"] / "pvgis"
+def cache_dir():
+    """Ortak PVGIS onbellegi (tum ulkeler): <kok>/cache/pvgis."""
+    return PATHS["wcache"] / "pvgis"
 
 
 def _get(endpoint: str, params: dict) -> dict:
+    CACHE = cache_dir()
     CACHE.mkdir(parents=True, exist_ok=True)
     key = hashlib.md5((endpoint + json.dumps(params, sort_keys=True)).encode()).hexdigest()
     fp = CACHE / f"{key}.json"

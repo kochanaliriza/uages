@@ -11,67 +11,11 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import requests
 
 from .config import PATHS
-from .inputs import load_regions
+from .countries import get_adapter
 
 TEMPLATE = Path(__file__).with_name("dashboard_template.html")
-# Natural Earth 1:50m ulke sinirlari (world-atlas TopoJSON); Ukrayna id=804. Bir kez indirilir.
-# Natural Earth'un varsayilan gorunumu Kirim'i Rusya geometrisine koyar; panel uluslararasi taninan
-# sinirlari gosterir, bu yuzden Kirim poligonu (asagidaki kutuya tamamen dusen poligon) Ukrayna'ya eklenir.
-OUTLINE_URL = "https://cdn.jsdelivr.net/npm/world-atlas@2.0.2/countries-50m.json"
-OUTLINE_CACHE = PATHS["cache"] / "ukraine_outline_v2.json"
-CRIMEA_BOX = (32.3, 44.2, 36.8, 46.4)  # lon0, lat0, lon1, lat1
-
-
-def ukraine_outline() -> dict | None:
-    """{'fill': dolgu halkalari, 'border': dis sinir cizgileri}, koordinatlar [lon, lat].
-    Ukrayna + Kirim arasindaki ortak yay (Perekop) dolguda kalir ama cizilmez.
-    Ag yoksa ve onbellek bossa None (harita sinirsiz cizilir)."""
-    if OUTLINE_CACHE.exists():
-        return json.loads(OUTLINE_CACHE.read_text(encoding="utf-8"))
-    try:
-        topo = requests.get(OUTLINE_URL, timeout=60).json()
-    except Exception as e:  # noqa: BLE001
-        print(f"  Ukrayna siniri alinamadi: {e}")
-        return None
-    (sx, sy), (tx, ty) = topo["transform"]["scale"], topo["transform"]["translate"]
-    arcs = []
-    for arc in topo["arcs"]:  # delta kodlu, kuantize koordinatlar
-        x = y = 0
-        pts = []
-        for dx, dy in arc:
-            x, y = x + dx, y + dy
-            pts.append([round(x * sx + tx, 3), round(y * sy + ty, 3)])
-        arcs.append(pts)
-    seg = lambda i: arcs[i] if i >= 0 else arcs[~i][::-1]  # noqa: E731
-
-    def in_box(poly):
-        pts = [p for i in poly[0] for p in seg(i)]
-        return all(CRIMEA_BOX[0] <= p[0] <= CRIMEA_BOX[2] and CRIMEA_BOX[1] <= p[1] <= CRIMEA_BOX[3] for p in pts)
-
-    polys = []
-    for g in topo["objects"]["countries"]["geometries"]:
-        gp = g["arcs"] if g["type"] == "MultiPolygon" else [g["arcs"]] if g["type"] == "Polygon" else []
-        if str(g.get("id")) == "804":
-            polys += gp
-        else:
-            polys += [p for p in gp if in_box(p)]
-    fill, use = [], {}
-    for poly in polys:
-        for ring in poly:
-            pts = []
-            for i in ring:
-                s = seg(i)
-                pts.extend(s[1:] if pts else s)
-                use[i if i >= 0 else ~i] = use.get(i if i >= 0 else ~i, 0) + 1
-            fill.append(pts)
-    out = {"fill": fill, "border": [arcs[i] for i, n in use.items() if n == 1]}
-    OUTLINE_CACHE.write_text(json.dumps(out), encoding="utf-8")
-    return out
-
-
 def _read(name: str, kw: dict) -> pd.DataFrame | None:
     fp = PATHS["out"] / name
     if not fp.exists():
@@ -102,7 +46,8 @@ def build(cfg: dict) -> Path:
     from .cli import csv_kw, _load_state
     kw = csv_kw(cfg)
     st = _load_state()
-    regions = load_regions(cfg)
+    ad = get_adapter(cfg)
+    regions = ad.load_regions(cfg)
     fc_h = _read("tahmin_7gun_saatlik.csv", kw)
     fc_r = _read("tahmin_7gun_bolge_saatlik.csv", kw)
     fc_d = _read("tahmin_7gun_gunluk.csv", kw)
@@ -154,7 +99,7 @@ def build(cfg: dict) -> Path:
         "lt_clim": _records(ltc, nd=3),
         "lt_future": _records(ltf, nd=3),
         "plants": _records(pl, nd=2),
-        "ukraine": ukraine_outline(),
+        "ukraine": ad.map_outline(),  # sablon anahtari (harita siniri), ulkeden bagimsiz ad korunuyor
     }
     js = json.dumps(data, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
     js = js.replace("</", "<\\/")

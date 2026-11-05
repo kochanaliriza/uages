@@ -126,8 +126,8 @@ def flag_curtailment(df: pd.DataFrame, k: pd.Series, cfg: dict) -> pd.Series:
 
 
 def monthly_k(df: pd.DataFrame, cfg: dict, model_col: str = "model_mw") -> pd.DataFrame:
-    """Aylik k (reanaliz modeline gore). Veri olmayan aylar gunes geometrisi simetrisiyle doldurulur:
-    Eki<-Mar, Kas<-Sub, Ara<-Oca (gozlenen yoksa)."""
+    """Aylik k (reanaliz modeline gore). Veri olmayan aylar ulke adaptorunun ayna kuraliyla doldurulur
+    (UA: gunes geometrisi simetrisi Eki<-Mar, Kas<-Sub, Ara<-Oca), kalan bosluklar medyanla."""
     m = training_mask(df, cfg, model_col)
     sub = df.loc[m]
     g = sub.groupby(sub["time_local"].dt.month).agg(a=("actual_mw", "sum"), m=(model_col, "sum"),
@@ -135,7 +135,8 @@ def monthly_k(df: pd.DataFrame, cfg: dict, model_col: str = "model_mw") -> pd.Da
     g["k"] = g["a"] / g["m"]
     out = pd.DataFrame(index=range(1, 13))
     out["k_gozlenen"] = g["k"].where(g["gun"] >= 15)
-    mirror = {10: 3, 11: 2, 12: 1}
+    from .countries import get_adapter
+    mirror = get_adapter(cfg).monthly_k_mirror()
     out["k_kullanilan"] = out["k_gozlenen"]
     out["kaynak"] = np.where(out["k_gozlenen"].notna(), "2026 gozlenen", "")
     for mo, src in mirror.items():

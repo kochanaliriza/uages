@@ -1,4 +1,8 @@
-"""GPEE (Garantili Alici) gunluk GES serisi: gerceklesen + GPEE tahmini.
+"""Ukrayna hedef serisi: GPEE (Garantili Alici) yesil tarife GES grubu, gerceklesen + GPEE D+1 tahmini.
+
+Bu modul GPEE verisinin tamamini tasir: API istemcisi (fetch_day), saatlik depo (countries/UA/data/store/
+gpee_hourly.csv) ve ilk kurulum icin v2 xlsx okuyucu. Ulkeden bagimsiz kod bunu yalnizca UkraineAdapter
+uzerinden kullanir.
 
 Uc: POST https://www.gpee.com.ua/main/loadCharts  (date=dd.mm.yyyy, zona=1, gen=1)
 Yanit: 50 elemanli dizi. [0..24] gerceklesen, [25..49] tahmin (25. slot DST'de 25 saatlik gun icin).
@@ -15,11 +19,54 @@ import numpy as np
 import pandas as pd
 import requests
 
-from .inputs import load_gpee, save_gpee
+from ..config import PATHS, inp
 
 URL = "https://www.gpee.com.ua/main/loadCharts"
 HEADERS = {"User-Agent": "Mozilla/5.0 (UA-GES-Tahmin)", "X-Requested-With": "XMLHttpRequest",
            "Referer": "https://www.gpee.com.ua/"}
+
+
+def store_path():
+    return PATHS["store"] / "gpee_hourly.csv"
+
+
+def _flags_from_xlsx(g: pd.DataFrame) -> pd.DataFrame:
+    return pd.DataFrame({
+        "time_utc": pd.to_datetime(g["Datetime_UTC"]),
+        "time_local": pd.to_datetime(g["Datetime"]),
+        "actual_mw": pd.to_numeric(g["GPEE_Actual_MW"], errors="coerce"),
+        "forecast_mw": pd.to_numeric(g["GPEE_Forecast_MW"], errors="coerce"),
+        "flag_curtail_day": g["flag_curtail_day"].fillna(False).astype(bool),
+        "flag_curtail_hour": g["flag_curtail_hour"].fillna(False).astype(bool),
+        "flag_night_anomaly": g["flag_night_regime_anomaly"].fillna(False).astype(bool),
+        "use_for_training": g["Use_For_Training"].fillna(True).astype(bool),
+        "source": "xlsx_v2",
+    })
+
+
+def init_gpee_store(cfg: dict, overwrite: bool = False) -> pd.DataFrame:
+    """v2 xlsx'ten saatlik depoyu olusturur (bir kez). Sonraki gunler update_store ile eklenir."""
+    if store_path().exists() and not overwrite:
+        return load_gpee(cfg)
+    g = pd.read_excel(inp(cfg, "gpee_xlsx"), sheet_name="GPEE")
+    df = _flags_from_xlsx(g).dropna(subset=["time_utc"]).sort_values("time_utc")
+    df = df.drop_duplicates("time_utc", keep="last")
+    save_gpee(df)
+    return df
+
+
+def save_gpee(df: pd.DataFrame) -> None:
+    df = df.sort_values("time_utc").drop_duplicates("time_utc", keep="last")
+    df.to_csv(store_path(), index=False, date_format="%Y-%m-%d %H:%M:%S")
+
+
+def load_gpee(cfg: dict) -> pd.DataFrame:
+    if not store_path().exists():
+        return init_gpee_store(cfg)
+    df = pd.read_csv(store_path(), parse_dates=["time_utc", "time_local"])
+    for c in ["flag_curtail_day", "flag_curtail_hour", "flag_night_anomaly", "use_for_training"]:
+        df[c] = df[c].astype(str).str.lower().isin(["true", "1"])
+    return df.sort_values("time_utc").reset_index(drop=True)
 
 
 def local_hours(d: date, tz: str) -> pd.DatetimeIndex:

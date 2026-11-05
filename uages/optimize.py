@@ -8,7 +8,8 @@ Adimlar (bkz. .claude/skills/pv-forecast/references/calibration-validation.md):
   d) ufka gore k / saat sekli / kt: her ufuk kendi tahmin serisiyle kalibre edilir
   b) kalibrasyon ayarlari (k penceresi, sekil penceresi, buzme, zaman azalimi): yuruyen dogrulamayla izgara arama
   e) ufuk x kt sinifina gore konformal P10/P90 bandi
-Donemler: secim = PR_START .. TEST_START-1 (ayar ve agirlik secimi), test = TEST_START .. son gerceklesen
+Donemler: secim = Previous Runs baslangici .. test_start-1 (ayar ve agirlik secimi), test = test_start .. son gerceklesen
+(config.optimize.test_start; gecikme config.optimize.lag_days)
 (secimde hic kullanilmaz). Son 7 gun ayrica raporlanir (kullanici icin en onemli gosterge).
 Hicbir sey otomatik devreye girmez: outputs/kalibrasyon_aday.json + outputs/optimizasyon_raporu.csv yazilir.
 
@@ -26,17 +27,25 @@ import pandas as pd
 
 from . import calibrate as cal
 from . import dataset
-from .config import PATHS
+from .config import PATHS, csv_kw, opt
+from .countries import get_adapter
 
 NB = len(cal.KT_BINS) - 1
-TEST_START = pd.Timestamp("2026-05-01")
-LAG = 2           # yayin gunu ile son mevcut GPEE gerceklesen gunu arasi (gun); GPEE ~1-2 gun gec yayimlar
 SEL_LEADS = (1, 2, 3)  # ayar secim olcutu: D+1..D+3 ortalama nMAE (alim-satim icin en degerli ufuklar)
 WEIGHT_SHRINK = 0.2    # agirliklar esit agirliga bu oranda cekilir (asiri uyuma karsi)
 GRID = {"window_days": [7, 14, 21, 30, 45], "shape_window_days": [30, 45, 60, 90],
         "shape_shrink_n": [10, 20, 40], "half_life": [None, 60, 30, 14]}
-OUT_JSON = PATHS["out"] / "kalibrasyon_aday.json"
-OUT_CSV = PATHS["out"] / "optimizasyon_raporu.csv"
+OUT_JSON_NAME = "kalibrasyon_aday.json"
+OUT_CSV_NAME = "optimizasyon_raporu.csv"
+
+
+def test_start(cfg: dict) -> pd.Timestamp:
+    return pd.Timestamp(opt(cfg, "test_start"))
+
+
+def lag_days(cfg: dict) -> int:
+    """Yayin gunu ile son mevcut gerceklesen gunu arasi (gun). UA: 2 (GPEE ~1-2 gun gec yayimlar)."""
+    return int(opt(cfg, "lag_days"))
 
 
 # ---------------------------------------------------------------- vektorel kalibrasyon cekirdegi
@@ -205,13 +214,13 @@ def curtail_flag(t1: pd.DataFrame, cfg: dict) -> pd.Series:
     return pd.Series(clear & low.fillna(False).to_numpy(), index=t1["time_utc"].to_numpy())
 
 
-def actual_weather_report(t1: pd.DataFrame) -> list[dict]:
+def actual_weather_report(t1: pd.DataFrame, cfg: dict) -> list[dict]:
     """Adim a: gerceklesen hava kaynagi. 2026'da ERA5/arsiv karmasi modeli (outputs/gecmis_saatlik.csv) ile
     uydu modelini, gerceklesenle saatlik korelasyon ve gunluk k oynakligi (CV) uzerinden kiyaslar."""
     fp = PATHS["out"] / "gecmis_saatlik.csv"
     if not fp.exists():
         return []
-    h = pd.read_csv(fp, sep=";", decimal=",", encoding="utf-8-sig", parse_dates=["time_utc"])
+    h = pd.read_csv(fp, **csv_kw(cfg), parse_dates=["time_utc"])
     j = h[["time_utc", "model_mw", "flag_curtail_model"]].merge(t1[["time_utc", "p_sat", "actual_mw", "elev"]], on="time_utc")
     j = j[(j["elev"] > 5) & j["actual_mw"].notna() & j["p_sat"].notna() & j["model_mw"].notna()
           & ~j["flag_curtail_model"].astype(str).str.lower().eq("true")]
@@ -230,6 +239,7 @@ class Prep:
 
     def __init__(self, t: pd.DataFrame, cfg: dict):
         self.cfg, self.c = cfg, cfg["calibration"]
+        self.lag = lag_days(cfg)
         self.models = list(cfg["forecast"]["model_weights"])
         t1 = t[t["lead"] == 1].reset_index(drop=True)
         self.t1 = t1
@@ -277,7 +287,7 @@ class Prep:
 
     def pred_for(self, L, path, P, b):
         r = self.LT[L]
-        return predict(path, self.t.loc[r, "di"].to_numpy(), self.t.loc[r, "h"].to_numpy(), b, P, self.elev[r], L, LAG, self.night)
+        return predict(path, self.t.loc[r, "di"].to_numpy(), self.t.loc[r, "h"].to_numpy(), b, P, self.elev[r], L, self.lag, self.night)
 
     def path_of(self, cb, hp, memo=None, season=None):
         return fit_path(cb, hp["window_days"], hp["shape_window_days"], hp["shape_shrink_n"], hp["half_life"],
@@ -314,15 +324,23 @@ def pooled_season(d: "Prep", period) -> np.ndarray:
 
 
 # ---------------------------------------------------------------- gunluk yenileme (uretim)
-UFUK_JSON = PATHS["out"] / "kalibrasyon_ufuk.json"
-MEVSIM_JSON = PATHS["out"] / "mevsim_k.json"  # python -m uages optimize yazar; ayda bir yenilemek yeterli
-SON7_CSV = PATHS["out"] / "son7gun_isabet.csv"
+def ufuk_json():
+    return PATHS["out"] / "kalibrasyon_ufuk.json"
+
+
+def mevsim_json():
+    """python -m uages optimize yazar; ayda bir yenilemek yeterli."""
+    return PATHS["out"] / "mevsim_k.json"
+
+
+def son7_csv():
+    return PATHS["out"] / "son7gun_isabet.csv"
 RECENT_DAYS = 75  # en uzun ufuk (7) + gecikme (2) + sekil penceresi (45) + 7 gunluk degerlendirme + pay
 
 
 def refresh(cfg: dict, verbose: bool = False) -> dict:
     """Son ~75 gunun Previous Runs + uydu verisiyle (12 saat onbellek) ufka gore kalibrasyonu yeniden fit eder ve
-    son 7 gun isabetini (GPEE / mevcut / ufka gore) hesaplar. calibration.mode ne olursa olsun calisir;
+    son 7 gun isabetini (resmi kiyas tahmini / mevcut / ufka gore) hesaplar. calibration.mode ne olursa olsun calisir;
     forecast.py yalnizca mode == "ufuk" iken kalibrasyon_ufuk.json'u kullanir."""
     end = dataset.yesterday()
     t = dataset.build(cfg, end=end, start=end - pd.Timedelta(days=RECENT_DAYS), save=False, verbose=verbose)
@@ -330,7 +348,7 @@ def refresh(cfg: dict, verbose: bool = False) -> dict:
     paths = d.ufuk_paths()
     # Mevsimsel egri (varsa): her ufuk icin k penceresinin mevsimsel ortalamasi (sw) saklanir; tahmin hedef gun icin
     # k x s(D) / sw uygular. calibration.season_correction kapaliyken de hesaplanir (son 7 gun kiyasi icin).
-    coef = json.loads(MEVSIM_JSON.read_text(encoding="utf-8"))["coef"] if MEVSIM_JSON.exists() else None
+    coef = json.loads(mevsim_json().read_text(encoding="utf-8"))["coef"] if mevsim_json().exists() else None
     S = season_factor(np.asarray(coef), d.dates()) if coef is not None else None
     spaths = {L: d.path_of(d.cube_for(L, *d.series(L)), d.cfg_h, season=S) for L in d.leads} if S is not None else {}
     out = {"olusturma_utc": str(pd.Timestamp.now("UTC").floor("s")), "fit_son_gun": str(d.last_day.date()),
@@ -342,7 +360,7 @@ def refresh(cfg: dict, verbose: bool = False) -> dict:
                                   "kt_factor": [float(x) for x in pth["ktf"][-1]]}
         if L in spaths:
             out["ufuklar"][str(L)]["mevsim_sw"] = float(spaths[L]["sw"][-1])
-    UFUK_JSON.write_text(json.dumps(out, ensure_ascii=False, indent=1), encoding="utf-8")
+    ufuk_json().write_text(json.dumps(out, ensure_ascii=False, indent=1), encoding="utf-8")
 
     leg = d.legacy_preds()
     last7 = (d.day > d.last_day - pd.Timedelta(days=7)).to_numpy()
@@ -354,20 +372,20 @@ def refresh(cfg: dict, verbose: bool = False) -> dict:
         if L in spaths:
             meths["Ufka göre + mevsim"] = d.pred_for(L, spaths[L], *d.series(L))
         if L == 1:
-            meths = {"GPEE resmi (D+1)": gp[r], **meths}
+            meths = {get_adapter(cfg).benchmark_label: gp[r], **meths}
         common = np.logical_and.reduce([np.isfinite(v) for v in meths.values()])
         for k, v in meths.items():
             rows.append({"ufuk": L, "yontem": k, "baslangic": str((d.last_day - pd.Timedelta(days=6)).date()),
                          "bitis": str(d.last_day.date()), **metrics(v, d.A[r], (d.evalm & last7)[r] & common)})
     son7 = pd.DataFrame(rows)
-    son7.to_csv(SON7_CSV, index=False, sep=";", decimal=",", encoding="utf-8-sig")
+    son7.to_csv(son7_csv(), index=False, **csv_kw(cfg))
     return {"kalibrasyon": out, "son7": son7}
 
 
 def load_ufuk(cfg: dict, max_age_days: int = 10) -> dict | None:
     """Uretimde kullanilacak ufka gore kalibrasyon; yoksa, bozuksa ya da fit_son_gun cok eskiyse None."""
     try:
-        cal_ = json.loads(UFUK_JSON.read_text(encoding="utf-8"))
+        cal_ = json.loads(ufuk_json().read_text(encoding="utf-8"))
         age = (pd.Timestamp.now(cfg["local_tz"]).tz_localize(None).normalize() - pd.Timestamp(cal_["fit_son_gun"])).days
         if age > max_age_days or not cal_.get("ufuklar"):
             return None
@@ -381,6 +399,7 @@ def run(cfg: dict, rebuild: bool = False, verbose: bool = True) -> dict:
     t = dataset.load(cfg, rebuild=rebuild, verbose=verbose)
     d = Prep(t, cfg)
     models, leads, LT, A = d.models, d.leads, d.LT, d.A
+    TEST_START = test_start(cfg)
     sel = (d.day < TEST_START).to_numpy()
     test = (d.day >= TEST_START).to_numpy()
     last7 = (d.day > d.last_day - pd.Timedelta(days=7)).to_numpy()
@@ -399,7 +418,7 @@ def run(cfg: dict, rebuild: bool = False, verbose: bool = True) -> dict:
     # Ufuk basina ayri egri ve uydu modelinden egri de denendi (2026-11-01): ortak egri ayni kazanci daha az riskle verdi.
     S_pool = season_factor(pooled_season(d, sel), d.dates())
     preds["Ufka göre + mevsim"] = {L: pred_for(L, path_of(cube_for(L, *series(L)), cfg_h, season=S_pool), *series(L)) for L in leads}
-    MEVSIM_JSON.write_text(json.dumps({
+    mevsim_json().write_text(json.dumps({
         "olusturma_utc": str(pd.Timestamp.now("UTC").floor("s")), "veri": [str(d0.date()), str(last_day.date())],
         "kaynak": "ufka gore hava karmasi serileri (D+1..D+7), havuzlanmis; yil sabitli harmonik regresyon",
         "coef": [float(x) for x in pooled_season(d, allp)]}, ensure_ascii=False, indent=1), encoding="utf-8")
@@ -452,7 +471,7 @@ def run(cfg: dict, rebuild: bool = False, verbose: bool = True) -> dict:
         r = LT[L]
         meths = dict((k, v[L]) for k, v in preds.items())
         if L == 1:
-            meths = {"GPEE resmi (D+1)": gp[r], **meths}
+            meths = {get_adapter(cfg).benchmark_label: gp[r], **meths}
         common = np.logical_and.reduce([np.isfinite(v) for v in meths.values()])
         for per, pm in [("secim", (evalm & sel)[r]), ("test", (evalm & test)[r]), ("test_tum_saatler", (evalall & test)[r]),
                         ("son_7_gun", (evalm & last7)[r])]:
@@ -479,8 +498,8 @@ def run(cfg: dict, rebuild: bool = False, verbose: bool = True) -> dict:
         cand["ufuklar"][str(L)] = {"agirliklar": W_all[L], "secim_agirliklari": W[L], "k": float(pth["k"][-1]),
                                     "shape": [float(x) for x in pth["shape"][-1]], "kt_factor": [float(x) for x in pth["ktf"][-1]],
                                     "bant": band[L]}
-    OUT_JSON.write_text(json.dumps(cand, ensure_ascii=False, indent=1), encoding="utf-8")
-    rep.to_csv(OUT_CSV, index=False, sep=";", decimal=",", encoding="utf-8-sig")
-    scores.head(30).to_csv(PATHS["out"] / "optimizasyon_izgara.csv", index=False, sep=";", decimal=",", encoding="utf-8-sig")
-    return {"rapor": rep, "aday": cand, "izgara": scores, "gerceklesen_hava": actual_weather_report(d.t1),
+    (PATHS["out"] / OUT_JSON_NAME).write_text(json.dumps(cand, ensure_ascii=False, indent=1), encoding="utf-8")
+    rep.to_csv(PATHS["out"] / OUT_CSV_NAME, index=False, **csv_kw(cfg))
+    scores.head(30).to_csv(PATHS["out"] / "optimizasyon_izgara.csv", index=False, **csv_kw(cfg))
+    return {"rapor": rep, "aday": cand, "izgara": scores, "gerceklesen_hava": actual_weather_report(d.t1, cfg),
             "kisit_saat": int(d.flags[LT[1]].sum())}

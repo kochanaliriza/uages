@@ -1,5 +1,10 @@
 {
   "_aciklama": "UA GES uretim/tahmin altyapisi ayarlari. Agirliklar otomatik normalize edilir; bir kaynagi kapatmak icin agirligini 0 yapin.",
+  "country": {
+    "code": "UA",
+    "adapter": "ua",
+    "_not": "Ulke adaptoru (uages/countries/). Hedef serisi: GPEE yesil tarife GES grubu; kiyas: GPEE D+1 tahmini."
+  },
   "project_name": "Ukrayna GES Filosu (GPEE yesil tarife grubu)",
   "local_tz": "Europe/Kyiv",
   "inputs": {
@@ -86,5 +91,12 @@
     "decimal": ",",
     "encoding": "utf-8-sig",
     "_not": "Excel (TR) uyumlu. Programatik kullanim icin sep=',' decimal='.' yapin."
+  },
+  "optimize": {
+    "test_start": "2026-05-01",
+    "lag_days": 2,
+    "prev_runs_start": "2024-01-01",
+    "satellite_start": "2020-07-01",
+    "_not": "test_start: optimizasyon raporunda test donemi baslangici (secimde kullanilmaz). lag_days: yayin gunu ile son mevcut gerceklesen gunu arasi (GPEE ~1-2 gun gec). prev_runs_start: Open-Meteo Previous Runs (ICON/GFS 2024-01-19, ECMWF 2024-03-06). satellite_start: uydu serisi / GPEE gerceklesen 2020-07'den."
   }
 }

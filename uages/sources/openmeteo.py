@@ -34,7 +34,9 @@ VARS = {
     "snow_depth": "snow",
 }
 HOURLY = ",".join(VARS)
-CACHE = PATHS["cache"] / "openmeteo"
+def cache_dir():
+    """Ortak hava onbellegi (tum ulkeler): <kok>/cache/openmeteo."""
+    return PATHS["wcache"] / "openmeteo"
 
 
 class DailyLimit(RuntimeError):
@@ -44,6 +46,7 @@ class DailyLimit(RuntimeError):
 def _get(url: str, params: dict, cache_hours: float | None = None, retries: int = 4) -> dict:
     """GET + disk onbellegi. cache_hours=None -> kalici (arsiv), sayi -> o kadar saat gecerli.
     429'da limit turune gore bekler (dakikalik 65 sn, saatlik 15 dk); gunluk limitte DailyLimit firlatir."""
+    CACHE = cache_dir()
     CACHE.mkdir(parents=True, exist_ok=True)
     key = hashlib.md5((url + json.dumps(params, sort_keys=True)).encode()).hexdigest()
     fp = CACHE / f"{key}.json"

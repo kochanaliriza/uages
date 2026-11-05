@@ -1,11 +1,11 @@
-"""Optimizasyon egitim tablosu: GPEE saatlik hedef x ufuk (D+1..D+7) x NWP modeli.
+"""Optimizasyon egitim tablosu: hedef serisi (UA: GPEE) saatlik x ufuk (D+1..D+7) x NWP modeli.
 
 Her model ve ufuk icin Previous Runs havasi bolge bazinda PV zincirinden gecirilir ve filo toplami alinir.
 Ayrica gunluk kalibrasyonla ayni bicimde "mevcut yontem" icin hava karmasi (weather.blend, config agirliklari)
 uzerinden bir seri uretilir. Tablo uzun bicimdedir: satir = (saat, ufuk).
 
 Sutunlar: time_utc, time_local, lead, p_<model>, ghi_<model>, p_legacy, ghi_legacy, g0h, elev,
-          actual_mw, forecast_mw (GPEE D+1), egitim maskesi bayraklari.
+          actual_mw, forecast_mw (resmi kiyas D+1; UA: GPEE), egitim maskesi bayraklari.
 Tum guc degerleri liste MWp evreninde (kalibresiz) MW'tir.
 """
 from __future__ import annotations
@@ -14,15 +14,26 @@ import pandas as pd
 
 from . import weather
 from .analysis import _fleet_extraterrestrial
-from .config import PATHS, region_pv
-from .inputs import load_gpee, load_regions
+from .config import PATHS, opt, region_pv
+from .countries import get_adapter
 from .pvmodel import aggregate_fleet, run_pv
 from .sources import openmeteo as om
 
-PR_START = pd.Timestamp("2024-01-01")   # Previous Runs: ICON/GFS 2024-01-19, ECMWF 2024-03-06
-SAT_START = pd.Timestamp("2020-07-01")  # GPEE gerceklesen 2020-07 ortasindan itibaren
 LEADS = range(1, 8)
-TABLE = PATHS["cache"] / "egitim_ufuk.pkl"
+
+
+def pr_start(cfg: dict) -> pd.Timestamp:
+    """Previous Runs baslangici (config.optimize.prev_runs_start). UA: 2024-01-01 (ICON/GFS 2024-01-19, ECMWF 2024-03-06)."""
+    return pd.Timestamp(opt(cfg, "prev_runs_start"))
+
+
+def sat_start(cfg: dict) -> pd.Timestamp:
+    """Uydu serisi baslangici (config.optimize.satellite_start). UA: 2020-07-01 (GPEE gerceklesen 2020-07 ortasindan)."""
+    return pd.Timestamp(opt(cfg, "satellite_start"))
+
+
+def table_path():
+    return PATHS["cache"] / "egitim_ufuk.pkl"
 WX = ["ghi", "dni", "dhi", "temp", "wind"]
 
 
@@ -41,27 +52,30 @@ def yesterday() -> pd.Timestamp:
     return pd.Timestamp.now("UTC").tz_localize(None).normalize() - pd.Timedelta(days=1)
 
 
-def lead_weather(r, model: str, end: pd.Timestamp, start: pd.Timestamp | None = None) -> pd.DataFrame:
-    """Bir bolge ve model icin tum ufuklarin uzun tablosu. start=None -> PR_START'tan ceyrek parcalarla (onbellek
-    araci tools/fetch_optim_data.py ile ayni sinirlar); start verilirse tek istek (gunluk yenileme)."""
-    spans = chunks(PR_START, end, "QS") if start is None else [(start, end)]
+def lead_weather(r, model: str, end: pd.Timestamp, start: pd.Timestamp | None = None,
+                 pr0: pd.Timestamp | None = None) -> pd.DataFrame:
+    """Bir bolge ve model icin tum ufuklarin uzun tablosu. start=None -> pr0'dan (Previous Runs baslangici) ceyrek
+    parcalarla (onbellek araci tools/fetch_optim_data.py ile ayni sinirlar); start verilirse tek istek (gunluk yenileme)."""
+    spans = chunks(pr0, end, "QS") if start is None else [(start, end)]
     parts = [om.previous_runs(r["lat"], r["lon"], s, e, model) for s, e in spans]
     return pd.concat(parts, ignore_index=True).drop_duplicates(["time_utc", "lead"]).sort_values(["lead", "time_utc"])
 
 
 def build(cfg: dict, end: pd.Timestamp | None = None, verbose: bool = True,
           start: pd.Timestamp | None = None, save: bool = True) -> pd.DataFrame:
-    """start=None: tam tablo (PR_START'tan), data/cache/egitim_ufuk.pkl'ye yazilir.
+    """start=None: tam tablo (Previous Runs baslangicindan), <ulke>/data/cache/egitim_ufuk.pkl'ye yazilir.
     start verilirse yalnizca o donem (gunluk kalibrasyon yenilemesi icin, ~16 istek esdegeri x 32)."""
     end = end or yesterday()
-    regions = load_regions(cfg)
+    ad = get_adapter(cfg)
+    regions = ad.load_regions(cfg)
+    pr0, sat0 = pr_start(cfg), sat_start(cfg)
     models = list(cfg["forecast"]["model_weights"])
     wx = {m: {} for m in models}
     for _, r in regions.iterrows():
         if verbose:
             print(f"  Bolge {int(r['region'])}: Previous Runs {', '.join(models)}", flush=True)
         for m in models:
-            wx[m][int(r["region"])] = lead_weather(r, m, end, start)
+            wx[m][int(r["region"])] = lead_weather(r, m, end, start, pr0)
 
     rows = []
     for L in LEADS:
@@ -98,7 +112,7 @@ def build(cfg: dict, end: pd.Timestamp | None = None, verbose: bool = True,
     res = {}
     for _, r in regions.iterrows():
         rid = int(r["region"])
-        spans = chunks(SAT_START, end, "YS") if start is None else [(start, end)]
+        spans = chunks(sat0, end, "YS") if start is None else [(start, end)]
         sat = pd.concat([om.satellite(r["lat"], r["lon"], s, e) for s, e in spans])
         sat = sat[~sat.index.duplicated()].sort_index()
         tw = wx[tw_model][rid]
@@ -115,21 +129,22 @@ def build(cfg: dict, end: pd.Timestamp | None = None, verbose: bool = True,
     t["elev"] = t["time_utc"].map(el)
     t["time_local"] = (pd.DatetimeIndex(t["time_utc"]).tz_localize("UTC").tz_convert(cfg["local_tz"]).tz_localize(None))
 
-    g = load_gpee(cfg).set_index("time_utc")
+    g = ad.load_target(cfg).set_index("time_utc")
     keep = ["actual_mw", "forecast_mw", "flag_curtail_day", "flag_curtail_hour", "use_for_training"]
     t = t.join(g[keep], on="time_utc")
     for c in ["flag_curtail_day", "flag_curtail_hour"]:
         t[c] = t[c].fillna(False).astype(bool)
     t["use_for_training"] = t["use_for_training"].fillna(True).astype(bool)
-    t = t[t["time_utc"] >= (PR_START if start is None else start)].sort_values(["lead", "time_utc"]).reset_index(drop=True)
+    t = t[t["time_utc"] >= (pr0 if start is None else start)].sort_values(["lead", "time_utc"]).reset_index(drop=True)
     if save and start is None:
-        t.to_pickle(TABLE)
+        t.to_pickle(table_path())
     return t
 
 
 def load(cfg: dict, rebuild: bool = False, verbose: bool = True) -> pd.DataFrame:
     """Tablo bugun uretildiyse onu dondurur, yoksa (ya da rebuild) yeniden kurar."""
-    if TABLE.exists() and not rebuild:
-        if pd.Timestamp(TABLE.stat().st_mtime, unit="s").normalize() >= pd.Timestamp.now().normalize():
-            return pd.read_pickle(TABLE)
+    fp = table_path()
+    if fp.exists() and not rebuild:
+        if pd.Timestamp(fp.stat().st_mtime, unit="s").normalize() >= pd.Timestamp.now().normalize():
+            return pd.read_pickle(fp)
     return build(cfg, verbose=verbose)
