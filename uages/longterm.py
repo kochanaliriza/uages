@@ -10,7 +10,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from .config import PATHS, normalize_weights, region_pv
+from .config import PATHS, normalize_weights, region_pv, rnd
 from .pvmodel import run_pv, run_pv_from_poa
 from .sources import openmeteo as om
 from .sources import pvgis
@@ -137,6 +137,6 @@ def build_longterm(cfg: dict, regions: pd.DataFrame, k_ref: float, mk: pd.DataFr
 
 def save_longterm(lt: dict, csv_kw: dict) -> None:
     out = PATHS["out"]
-    lt["climatology"].round(3).to_csv(out / "uzun_vade_klimatoloji_aylik.csv", index=False, **csv_kw)
-    lt["future"].round(3).to_csv(out / "uzun_vade_gelecek_aylar.csv", index=False, **csv_kw)
-    lt["hourly"].round(2).to_csv(out / "uzun_vade_tipik_saatlik.csv", index=False, **csv_kw)
+    lt["climatology"].pipe(rnd, 3).to_csv(out / "uzun_vade_klimatoloji_aylik.csv", index=False, **csv_kw)
+    lt["future"].pipe(rnd, 3).to_csv(out / "uzun_vade_gelecek_aylar.csv", index=False, **csv_kw)
+    lt["hourly"].pipe(rnd, 2).to_csv(out / "uzun_vade_tipik_saatlik.csv", index=False, **csv_kw)

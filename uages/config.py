@@ -96,6 +96,12 @@ def csv_kw(cfg: dict) -> dict:
     return {"sep": c.get("sep", ","), "decimal": c.get("decimal", "."), "encoding": c.get("encoding", "utf-8")}
 
 
+def rnd(df, n: int):
+    """Yalnizca sayisal sutunlari yuvarlar (DataFrame.round ile ayni sonuc, tarih sutunlarinda uyari vermez)."""
+    num = df.select_dtypes("number").columns
+    return df.round({c: n for c in num}) if len(num) else df
+
+
 def normalize_weights(w: dict) -> dict:
     w = {k: float(v) for k, v in w.items() if v and float(v) > 0}
     s = sum(w.values())

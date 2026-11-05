@@ -209,8 +209,8 @@ def curtail_flag(t1: pd.DataFrame, cfg: dict) -> pd.Series:
     d = d.asfreq("D").fillna(0)
     k = (d["a"].rolling(21, min_periods=7).sum() / d["p"].rolling(21, min_periods=7).sum()).ffill().bfill()
     exp = t1["p_sat"] * day.map(k).to_numpy()
-    clear = kt_of(t1["ghi_sat"], t1["g0h"]) > 0.6
-    low = (t1["actual_mw"] < r * exp) & (t1["actual_mw"] < r * t1["forecast_mw"]) & (exp > 300)
+    clear = kt_of(t1["ghi_sat"], t1["g0h"]) > cal.CURTAIL_CLEAR_KT
+    low = cal.curtail_low(t1["actual_mw"], exp, t1["forecast_mw"], r)
     return pd.Series(clear & low.fillna(False).to_numpy(), index=t1["time_utc"].to_numpy())
 
 

@@ -2,7 +2,7 @@
 
   python tools/backfill_gpee.py fetch [--start 2020-07-01] [--end 2025-12-31] [--workers 3]
   python tools/backfill_gpee.py check      # gun basina saat sayisi, DST, eksik gun, uc degerler
-  python tools/backfill_gpee.py merge      # data/store/gpee_backfill.csv -> gpee_hourly.csv (once yedek alinir)
+  python tools/backfill_gpee.py merge      # countries/UA/data/store/gpee_backfill.csv -> gpee_hourly.csv (once yedek alinir)
 
 Kaldigi yerden devam eder: dosyada olan gunler atlanir, hatali gunler sonraki calistirmada yeniden denenir.
 Ana depodaki satirlar her zaman korunur; geri doldurma yalnizca depoda olmayan saatleri ekler.
@@ -22,11 +22,11 @@ import pandas as pd
 import requests
 
 from uages.config import PATHS, load_config
-from uages.gpee import fetch_day, local_hours
-from uages.inputs import GPEE_STORE, load_gpee, save_gpee
+from uages.countries.ua_gpee import fetch_day, load_gpee, local_hours, save_gpee, store_path
 
-BACKFILL = PATHS["store"] / "gpee_backfill.csv"
-EMPTY = PATHS["store"] / "gpee_backfill_bos.txt"
+# Yalnizca Ukrayna (GPEE). Yollar load_config(ulke="UA") sonrasi cagri aninda cozulur.
+BACKFILL = lambda: PATHS["store"] / "gpee_backfill.csv"  # noqa: E731
+EMPTY = lambda: PATHS["store"] / "gpee_backfill_bos.txt"  # noqa: E731
 _local = threading.local()
 
 
@@ -55,10 +55,10 @@ def get_day(d: date, tz: str, pause: float):
 def fetch(cfg, start: date, end: date, workers: int, pause: float):
     tz = cfg["local_tz"]
     done = set()
-    if BACKFILL.exists():
-        done |= set(pd.read_csv(BACKFILL, usecols=["time_local"], parse_dates=["time_local"])["time_local"].dt.date)
-    if EMPTY.exists():
-        done |= {date.fromisoformat(x) for x in EMPTY.read_text().split()}
+    if BACKFILL().exists():
+        done |= set(pd.read_csv(BACKFILL(), usecols=["time_local"], parse_dates=["time_local"])["time_local"].dt.date)
+    if EMPTY().exists():
+        done |= {date.fromisoformat(x) for x in EMPTY().read_text().split()}
     days = [start + timedelta(days=i) for i in range((end - start).days + 1)]
     todo = [d for d in days if d not in done]
     print(f"{len(days)} gun, {len(days) - len(todo)} hazir, {len(todo)} cekilecek ({workers} paralel)", flush=True)
@@ -74,10 +74,10 @@ def fetch(cfg, start: date, end: date, workers: int, pause: float):
                 print(f"  HATA {e}", flush=True)
                 continue
             if df is None:
-                with open(EMPTY, "a") as fh:
+                with open(EMPTY(), "a") as fh:
                     fh.write(f"{d}\n")
             else:
-                df.to_csv(BACKFILL, mode="a", header=not BACKFILL.exists(), index=False,
+                df.to_csv(BACKFILL(), mode="a", header=not BACKFILL().exists(), index=False,
                           date_format="%Y-%m-%d %H:%M:%S")
             if i % 50 == 0 or i == len(todo):
                 el = time.time() - t0
@@ -87,7 +87,7 @@ def fetch(cfg, start: date, end: date, workers: int, pause: float):
 
 def check(cfg):
     tz = cfg["local_tz"]
-    bf = pd.read_csv(BACKFILL, parse_dates=["time_utc", "time_local"])
+    bf = pd.read_csv(BACKFILL(), parse_dates=["time_utc", "time_local"])
     print(f"satir {len(bf)}  donem {bf.time_local.min()} .. {bf.time_local.max()}")
     print(f"tekrarlanan time_utc: {bf.time_utc.duplicated().sum()}")
     per_day = bf.groupby(bf.time_local.dt.date).size()
@@ -110,10 +110,10 @@ def check(cfg):
 
 def merge(cfg):
     store = load_gpee(cfg)
-    bf = pd.read_csv(BACKFILL, parse_dates=["time_utc", "time_local"]).drop_duplicates("time_utc", keep="last")
+    bf = pd.read_csv(BACKFILL(), parse_dates=["time_utc", "time_local"]).drop_duplicates("time_utc", keep="last")
     new = bf[~bf["time_utc"].isin(store["time_utc"])]
-    backup = GPEE_STORE.with_name(f"gpee_hourly_yedek_{pd.Timestamp.now():%Y%m%d_%H%M}.csv")
-    shutil.copy(GPEE_STORE, backup)
+    backup = store_path().with_name(f"gpee_hourly_yedek_{pd.Timestamp.now():%Y%m%d_%H%M}.csv")
+    shutil.copy(store_path(), backup)
     save_gpee(pd.concat([store, new], ignore_index=True))
     print(f"yedek: {backup.name}  depo {len(store)} -> {len(store) + len(new)} satir (+{len(new)})")
 
@@ -126,7 +126,7 @@ def main():
     ap.add_argument("--workers", type=int, default=3)
     ap.add_argument("--pause", type=float, default=0.3)
     a = ap.parse_args()
-    cfg = load_config()
+    cfg = load_config(ulke="UA")
     if a.komut == "fetch":
         fetch(cfg, date.fromisoformat(a.start), date.fromisoformat(a.end), a.workers, a.pause)
     elif a.komut == "check":

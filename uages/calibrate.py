@@ -114,14 +114,24 @@ def night_baseline(df: pd.DataFrame, days: int = 30) -> float:
     return float(v) if pd.notna(v) else 0.0
 
 
+CURTAIL_CLEAR_KT = 0.6   # acik hava esigi (saatlik berraklik indeksi)
+CURTAIL_MIN_MW = 300.0   # beklenen uretim alt siniri (MW)
+
+
+def curtail_low(actual, expected, forecast, ratio: float):
+    """Kisit suphesi cekirdegi (gecmis analiz ve optimizasyonda ortak): gerceklesen hem beklenenin hem resmi kiyas
+    tahmininin `ratio` katinin altinda ve beklenen > CURTAIL_MIN_MW. NaN karsilastirmalari False'tur."""
+    return (actual < ratio * expected) & (actual < ratio * forecast) & (expected > CURTAIL_MIN_MW)
+
+
 def flag_curtailment(df: pd.DataFrame, k: pd.Series, cfg: dict) -> pd.Series:
-    """Model tabanli kisit suphesi: acik havada (kt_h>0.6) gerceklesen hem kalibre modelin hem GPEE
-    tahmininin 'curtail_ratio' katinin altinda ve beklenen > 300 MW."""
+    """Model tabanli kisit suphesi: acik havada (kt_h>0.6) gerceklesen hem kalibre modelin hem resmi kiyas
+    tahmininin (UA: GPEE) 'curtail_ratio' katinin altinda ve beklenen > 300 MW (bkz. curtail_low)."""
     r = cfg["calibration"]["curtail_ratio"]
     kk = df["time_local"].dt.normalize().map(k).astype(float)
     exp = df["model_mw"] * kk
-    clear = df["kt_h"] > 0.6
-    low = (df["actual_mw"] < r * exp) & (df["actual_mw"] < r * df["forecast_mw"]) & (exp > 300)
+    clear = df["kt_h"] > CURTAIL_CLEAR_KT
+    low = curtail_low(df["actual_mw"], exp, df["forecast_mw"], r)
     return (clear & low).fillna(False)
 
 

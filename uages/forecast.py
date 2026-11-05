@@ -17,7 +17,7 @@ import pandas as pd
 
 from . import calibrate as cal
 from . import weather
-from .config import PATHS, region_pv
+from .config import PATHS, region_pv, rnd
 from .pvmodel import aggregate_fleet, run_pv
 
 
@@ -165,12 +165,12 @@ def attach_actuals(fc: dict, gpee: pd.DataFrame) -> None:
 
 def save_forecast(fc: dict, csv_kw: dict) -> None:
     out = PATHS["out"]
-    fc["hourly"].round(2).to_csv(out / "tahmin_7gun_saatlik.csv", index=False, **csv_kw)
-    fc["regions"].round(2).to_csv(out / "tahmin_7gun_bolge_saatlik.csv", index=False, **csv_kw)
-    fc["daily"].round(3).to_csv(out / "tahmin_7gun_gunluk.csv", index=False, **csv_kw)
+    fc["hourly"].pipe(rnd, 2).to_csv(out / "tahmin_7gun_saatlik.csv", index=False, **csv_kw)
+    fc["regions"].pipe(rnd, 2).to_csv(out / "tahmin_7gun_bolge_saatlik.csv", index=False, **csv_kw)
+    fc["daily"].pipe(rnd, 3).to_csv(out / "tahmin_7gun_gunluk.csv", index=False, **csv_kw)
     # Arsiv: her verilen tahmin saklanir -> ileride gercek D+1..D+7 isabeti olculebilir
     arc = out / "arsiv"
     arc.mkdir(exist_ok=True)
     stamp = pd.Timestamp(fc["issued_utc"]).strftime("%Y%m%d_%H")
     cols = ["time_utc", "time_local", "tahmin_p50_mw", "tahmin_p10_mw", "tahmin_p90_mw", "model_liste_mw", "ghi", "temp", "cloud"]
-    fc["hourly"][[c for c in cols if c in fc["hourly"]]].round(1).to_csv(arc / f"tahmin_{stamp}UTC.csv", index=False, **csv_kw)
+    fc["hourly"][[c for c in cols if c in fc["hourly"]]].pipe(rnd, 1).to_csv(arc / f"tahmin_{stamp}UTC.csv", index=False, **csv_kw)

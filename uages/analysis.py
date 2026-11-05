@@ -11,7 +11,7 @@ import pandas as pd
 
 from . import calibrate as cal
 from . import weather
-from .config import PATHS, region_pv
+from .config import PATHS, region_pv, rnd
 from .countries import get_adapter
 from .pvmodel import run_fleet, run_pv
 from .solar import interval_solar_position
@@ -255,12 +255,12 @@ def save_history(h: dict, csv_kw: dict) -> None:
     cols = ["time_local", "time_utc", "actual_mw", "forecast_mw", "model_mw", "model_kalibre_mw",
             "model_gunoncesi_kalibre_mw", "model_era5_mw", "model_arsiv_mw", "ghi", "poa", "temp", "cloud", "wind",
             "kt_h", "elev", "k", "flag_curtail_hour", "flag_curtail_model"]
-    h["hourly"][[c for c in cols if c in h["hourly"]]].round(3).to_csv(out / "gecmis_saatlik.csv", index=False, **csv_kw)
-    h["daily"].round(4).to_csv(out / "gecmis_gunluk.csv", index=False, **csv_kw)
-    h["monthly"].round(4).to_csv(out / "gecmis_aylik.csv", index=False, **csv_kw)
-    h["weather_class"].round(4).to_csv(out / "hava_sinifi_performans.csv", index=False, **csv_kw)
-    h["temp_bins"].round(4).to_csv(out / "sicaklik_performans.csv", index=False, **csv_kw)
-    h["region_monthly"].round(3).to_csv(out / "bolge_aylik_model.csv", index=False, **csv_kw)
-    h["plants"].round(2).to_csv(out / "santral_aylik_model.csv", index=False, **csv_kw)
-    h["validation"].round(3).to_csv(out / "tahmin_dogrulama.csv", index=False, **csv_kw)
-    h["monthly_k"].round(4).to_csv(out / "kalibrasyon_aylik_k.csv", index=False, **csv_kw)
+    h["hourly"][[c for c in cols if c in h["hourly"]]].pipe(rnd, 3).to_csv(out / "gecmis_saatlik.csv", index=False, **csv_kw)
+    h["daily"].pipe(rnd, 4).to_csv(out / "gecmis_gunluk.csv", index=False, **csv_kw)
+    h["monthly"].pipe(rnd, 4).to_csv(out / "gecmis_aylik.csv", index=False, **csv_kw)
+    h["weather_class"].pipe(rnd, 4).to_csv(out / "hava_sinifi_performans.csv", index=False, **csv_kw)
+    h["temp_bins"].pipe(rnd, 4).to_csv(out / "sicaklik_performans.csv", index=False, **csv_kw)
+    h["region_monthly"].pipe(rnd, 3).to_csv(out / "bolge_aylik_model.csv", index=False, **csv_kw)
+    h["plants"].pipe(rnd, 2).to_csv(out / "santral_aylik_model.csv", index=False, **csv_kw)
+    h["validation"].pipe(rnd, 3).to_csv(out / "tahmin_dogrulama.csv", index=False, **csv_kw)
+    h["monthly_k"].pipe(rnd, 4).to_csv(out / "kalibrasyon_aylik_k.csv", index=False, **csv_kw)

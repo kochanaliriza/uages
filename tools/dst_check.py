@@ -5,9 +5,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from datetime import date
 import pandas as pd
 from uages.config import load_config
-from uages.inputs import load_gpee
-from uages.gpee import fetch_day
-cfg = load_config(); st = load_gpee(cfg).set_index("time_utc")
+from uages.countries.ua_gpee import fetch_day, load_gpee
+cfg = load_config(ulke="UA"); st = load_gpee(cfg).set_index("time_utc")
 for d in [date(2026, 3, 28), date(2026, 3, 29), date(2026, 3, 30), date(2026, 7, 15)]:
     a = fetch_day(d).set_index("time_utc")
     j = a[["actual_mw", "forecast_mw"]].join(st[["actual_mw", "forecast_mw"]], rsuffix="_xlsx")

@@ -21,7 +21,7 @@ import traceback
 import pandas as pd
 
 from . import analysis, forecast, longterm
-from .config import ACTIVE, PATHS, csv_kw, load_config  # noqa: F401  (csv_kw: dashboard buradan da alir)
+from .config import ACTIVE, PATHS, csv_kw, load_config, rnd  # noqa: F401  (csv_kw: dashboard buradan da alir)
 from .countries import get_adapter
 
 
@@ -56,14 +56,14 @@ def cmd_history(cfg):
                  "history_run_utc": str(pd.Timestamp.now("UTC"))})
     s = h["summary"]
     print(f"    k_ref={s['k_ref']:.3f}  etkin MWp={s['mwp_etkin']:.0f}  son gerceklesen={s['son_gerceklesen']}")
-    print(h["validation"].round(2).to_string(index=False))
+    print(h["validation"].pipe(rnd, 2).to_string(index=False))
     # Ufka gore kalibrasyon + son 7 gun isabeti (her iki modda da hesaplanir; hata pipeline'i durdurmaz)
     print("[2b] Ufka gore kalibrasyon ve son 7 gun isabeti")
     try:
         from . import optimize
         r = optimize.refresh(cfg)
         _save_state({"ufuk_kalibrasyon_son_gun": r["kalibrasyon"]["fit_son_gun"]})
-        print(r["son7"].pivot_table(index="ufuk", columns="yontem", values="nMAE_pct").round(1).to_string())
+        print(r["son7"].pivot_table(index="ufuk", columns="yontem", values="nMAE_pct").pipe(rnd, 1).to_string())
     except Exception as e:  # noqa: BLE001
         print(f"    UYARI: ufka gore kalibrasyon yenilenemedi ({e}); tahmin {cfg['calibration'].get('mode', 'mevcut')} moduyla devam eder")
     return h
@@ -83,7 +83,7 @@ def cmd_forecast(cfg):
     forecast.save_forecast(fc, csv_kw(cfg))
     _save_state({"forecast_issued_utc": fc["issued_utc"], "forecast_calib_mode": fc["kalibrasyon_modu"]})
     print(f"    kalibrasyon modu: {fc['kalibrasyon_modu']}")
-    print(fc["daily"].round(1).to_string(index=False))
+    print(fc["daily"].pipe(rnd, 1).to_string(index=False))
     return fc
 
 
@@ -98,7 +98,7 @@ def cmd_longterm(cfg):
     lt = longterm.build_longterm(cfg, regions, st["calib"]["k_ref"], mk, verbose=False)
     longterm.save_longterm(lt, csv_kw(cfg))
     _save_state({"longterm_weights": lt["weights"], "longterm_run_utc": str(pd.Timestamp.now("UTC"))})
-    print(lt["future"][["ay_basi", "karma_liste_mwh", "karma_kalibre_p50_mwh", "karma_kalibre_p90_mwh"]].round(0).to_string(index=False))
+    print(lt["future"][["ay_basi", "karma_liste_mwh", "karma_kalibre_p50_mwh", "karma_kalibre_p90_mwh"]].pipe(rnd, 0).to_string(index=False))
     return lt
 
 
@@ -109,7 +109,7 @@ def cmd_range(cfg, start, end):
     lt = longterm.build_longterm(cfg, regions, st["calib"]["k_ref"], mk, verbose=False,
                                  period=(pd.Timestamp(start), pd.Timestamp(end)))
     fp = PATHS["out"] / f"beklenti_{start}_{end}.csv"
-    lt["hourly"].round(2).to_csv(fp, index=False, **csv_kw(cfg))
+    lt["hourly"].pipe(rnd, 2).to_csv(fp, index=False, **csv_kw(cfg))
     print(f"  yazildi: {fp}")
 
 
@@ -119,7 +119,7 @@ def cmd_optimize(cfg, rebuild=False):
     o = optimize.run(cfg, rebuild=rebuild)
     rep = o["rapor"]
     show = rep[rep["donem"].isin(["test", "son_7_gun"])].pivot_table(index=["donem", "ufuk"], columns="yontem", values="nMAE_pct")
-    print(show.round(2).to_string())
+    print(show.pipe(rnd, 2).to_string())
     print(f"  ayarlar: {o['aday']['ayarlar']}")
     print(f"  yazildi: {optimize.OUT_CSV_NAME}, {optimize.OUT_JSON_NAME}")
     return o
