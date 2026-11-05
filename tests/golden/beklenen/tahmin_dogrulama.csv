@@ -1,0 +1,4 @@
+﻿yontem;n_saat;MAE_MW;RMSE_MW;Bias_MW;nMAE_pct;nRMSE_pct
+GPEE resmi tahmini (D+1);3178;109,167;185,794;45,476;8,365;14,236
+Model · tahmin havası (Open-Meteo geçmiş tahmin) + yürüyen kalibrasyon, 2 gün gecikmeli;3178;146,112;221,889;-29,506;11,196;17,002
+Model · gerçekleşen hava (ERA5/arşiv karması), yalnız kayan k (saat/bulut düzeltmesiz);3178;157,245;224,784;-13,286;12,049;17,224
