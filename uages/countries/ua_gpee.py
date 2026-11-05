@@ -19,6 +19,7 @@ import numpy as np
 import pandas as pd
 import requests
 
+from .. import net
 from ..config import PATHS, inp
 
 URL = "https://www.gpee.com.ua/main/loadCharts"
@@ -78,7 +79,7 @@ def local_hours(d: date, tz: str) -> pd.DatetimeIndex:
 
 def fetch_day(d: date, tz: str = "Europe/Kyiv", session=None) -> pd.DataFrame:
     s = session or requests
-    r = s.post(URL, data={"date": d.strftime("%d.%m.%Y"), "zona": "1", "gen": "1"}, headers=HEADERS, timeout=30)
+    r = s.post(URL, data={"date": d.strftime("%d.%m.%Y"), "zona": "1", "gen": "1"}, headers=HEADERS, timeout=30, **net.kw())
     r.raise_for_status()
     arr = json.loads(r.text.strip())
     arr = [np.nan if v is None else float(v) for v in arr]

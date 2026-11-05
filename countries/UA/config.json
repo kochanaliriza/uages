@@ -5,6 +5,10 @@
     "adapter": "ua",
     "_not": "Ulke adaptoru (uages/countries/). Hedef serisi: GPEE yesil tarife GES grubu; kiyas: GPEE D+1 tahmini."
   },
+  "ag": {
+    "ssl_dogrulama": false,
+    "_not": "false: HTTPS sertifikasi dogrulanmaz (kurumsal SSL denetimi olan ag icin, kullanici istegi 2026-11-05). Yalnizca herkese acik veri cekilir, parola/anahtar gonderilmez. Mumkunse true yapin (truststore ile Windows sertifika deposu kullanilir). Ortam degiskeni UAGES_SSL_DOGRULAMA=1/0 bunu ezer."
+  },
   "project_name": "Ukrayna GES Filosu (GPEE yesil tarife grubu)",
   "local_tz": "Europe/Kyiv",
   "inputs": {

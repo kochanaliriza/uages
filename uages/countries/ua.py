@@ -10,6 +10,7 @@ import json
 import pandas as pd
 import requests
 
+from .. import net
 from ..config import PATHS, inp
 from . import ua_gpee
 from .base import CountryAdapter
@@ -81,7 +82,7 @@ class UkraineAdapter(CountryAdapter):
         if fp.exists():
             return json.loads(fp.read_text(encoding="utf-8"))
         try:
-            topo = requests.get(OUTLINE_URL, timeout=60).json()
+            topo = requests.get(OUTLINE_URL, timeout=60, **net.kw()).json()
         except Exception as e:  # noqa: BLE001
             print(f"  Ukrayna siniri alinamadi: {e}")
             return None

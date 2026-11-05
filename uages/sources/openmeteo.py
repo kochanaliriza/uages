@@ -14,7 +14,7 @@ import time
 import pandas as pd
 import requests
 
-from .. import ssl_ipucu
+from .. import net, ssl_ipucu
 from ..config import PATHS
 
 ARCHIVE = "https://archive-api.open-meteo.com/v1/archive"
@@ -56,7 +56,7 @@ def _get(url: str, params: dict, cache_hours: float | None = None, retries: int 
     err = None
     for i in range(retries):
         try:
-            r = requests.get(url, params=params, timeout=120)
+            r = requests.get(url, params=params, timeout=120, **net.kw())
             if r.status_code == 429:
                 reason = r.text
                 if "Daily" in reason:

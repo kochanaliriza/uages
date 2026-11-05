@@ -14,7 +14,7 @@ import time
 import pandas as pd
 import requests
 
-from .. import ssl_ipucu
+from .. import net, ssl_ipucu
 from ..config import PATHS
 
 API = "https://re.jrc.ec.europa.eu/api/v5_3"
@@ -33,7 +33,7 @@ def _get(endpoint: str, params: dict) -> dict:
     err = None
     for i in range(4):
         try:
-            r = requests.get(f"{API}/{endpoint}", params=params | {"outputformat": "json"}, timeout=180)
+            r = requests.get(f"{API}/{endpoint}", params=params | {"outputformat": "json"}, timeout=180, **net.kw())
             if r.status_code == 429:
                 time.sleep(15 * (i + 1))
                 continue

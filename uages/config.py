@@ -99,7 +99,10 @@ def load_config(path: str | Path | None = None, ulke: str | None = None) -> dict
         raise FileNotFoundError(f"{code} icin ayar dosyasi yok: {path} (mevcut ulkeler: {', '.join(mevcut) or '-'})")
     activate(code)  # klasorleri yalnizca gecerli ulke icin olustur
     with open(path, encoding="utf-8") as f:
-        return json.load(f)
+        cfg = json.load(f)
+    from . import net
+    net.ayarla(cfg)
+    return cfg
 
 
 def region_pv(cfg: dict, region_id: int | str) -> dict:

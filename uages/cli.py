@@ -150,9 +150,12 @@ def main(argv=None):
     except FileNotFoundError as e:
         print(f"HATA: {e}")
         sys.exit(2)
-    from . import SERTIFIKA_DURUMU
-    print(f"Ulke: {ACTIVE['code']}  ({PATHS['country']})  HTTPS sertifika deposu: "
-          f"{'Windows/isletim sistemi' if SERTIFIKA_DURUMU == 'aktif' else 'Python (certifi) — truststore ' + SERTIFIKA_DURUMU}")
+    from . import SERTIFIKA_DURUMU, net
+    print(f"Ulke: {ACTIVE['code']}  ({PATHS['country']})")
+    if net.VERIFY:
+        print(f"  HTTPS sertifika dogrulamasi: acik ({'Windows/isletim sistemi deposu' if SERTIFIKA_DURUMU == 'aktif' else 'Python deposu'})")
+    else:
+        print("  UYARI: HTTPS sertifika dogrulamasi KAPALI (config ag.ssl_dogrulama=false). Acmak icin true yapin.")
     eski = eski_duzen()
     if eski:
         print(f"HATA: eski klasor yapisi bulundu ({', '.join(eski)}). Once TASIMA.bat ile verileri countries\\{ACTIVE['code']}\\ "
