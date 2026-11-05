@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+# veri ve uretilen dosyalar (eski ve yeni yapi)
+data/
+outputs/
+logs/
+cache/
+countries/*/data/cache/
+countries/*/data/store/
+countries/*/outputs/
+countries/*/logs/
+tests/golden/_calisma/
