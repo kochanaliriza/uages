@@ -2,7 +2,7 @@
 
 > **2026-11-05 — ülke adaptörü sürümü.** Kod ülkeden bağımsız hale getirildi; Ukrayna'nın verisi, ayarları ve çıktıları artık
 > `countries\UA\` altında, hava önbelleği kökteki `cache\` altında. Sonuçlar değişmedi (altın test: eski kodla 22 çıktı dosyası (18 CSV + 4 kalibrasyon JSON)
-> birebir aynı). Eski klasör yapısından geçiş için bir kez `TASIMA.bat` çalıştırın — bkz. **Yükseltme**.
+> birebir aynı). Kurulum/geçiş için bkz. **Kurulum / yükseltme**.
 
 GPEE (Garantili Alıcı) saatlik GES gerçekleşen serisini hava verisiyle modelleyip:
 1. **Geçmiş performans**: spesifik üretim (kWh/kWp), PR, hava sınıfı ve sıcaklığa göre performans, tahmin doğruluğu
@@ -20,7 +20,7 @@ hesaplar pencerede görünür, bitince panel (`countries\UA\outputs\dashboard.ht
 | `CALISTIR.bat` | Elle çalıştırma: ilerlemeyi gösterir, paneli açar |
 | `hizli_tahmin.bat` | Sadece 7 günlük tahmini yeniler (~10 sn), paneli açar |
 | `guncelle.bat` | Sessiz tam güncelleme; zamanlanmış görev için (çıktı `countries\UA\logs\guncelle.log`) |
-| `TASIMA.bat` | Bir kez: eski yapıdan (`data\`, `outputs\`, `logs\`) yeni yapıya geçiş |
+| `TASIMA.bat` | Bir kez (yol A): eski yapıdan (`data\`, `outputs\`, `logs\`) yeni yapıya geçiş |
 
 ## Kurulum (bir kez)
 ```
@@ -74,13 +74,31 @@ tests/golden/              altın test (dondurulmuş eski kod + 1 Kasım 2026 gi
 3. `countries/<KOD>/config.json` (`country.adapter`, `local_tz`, `inputs`, `optimize.*` dahil) ve `countries/<KOD>/data/input/`.
 4. `python -m uages all --ulke <KOD>`. Sonra `python tests/golden/run_golden.py` — Ukrayna sonuçları değişmemeli.
 
-## Yükseltme (2026-11-05, eski yapıdan)
-1. Zamanlanmış görev çalışmıyorken ZIP içeriğini mevcut proje klasörünün (`D:\EnergyPortal\UA_GES_Tahmin`) üzerine açın.
-2. `TASIMA.bat`'a çift tıklayın: ne taşınacağını listeler, onay ister, `data\` `outputs\` `logs\` klasörlerini yeni yerlerine taşır
-   (aynı disk içinde yeniden adlandırma, kopyalama yok), eski `config.json` ve kod kalıntılarını `_tasima_yedek\` altına alır.
-   Geri almak için: `python tools\migrate_to_countries.py --geri-al`.
-3. Doğrulama: `python tests\golden\run_golden.py` → `SONUC: OZDES`. Sonra `CALISTIR.bat`.
-4. `outputs\dashboard.html` için bir kısayolunuz varsa `countries\UA\outputs\dashboard.html` olarak güncelleyin.
+## Kurulum / yükseltme (2026-11-05 sürümü)
+Paket girdi dosyalarını (`countries\UA\data\input\*.xlsx`) ve başlangıç verisini (`countries\UA\data\seed\`: 2020-07 → 2026-10-31
+GPEE deposu ve mevsimsel k eğrisi) içerir; hava önbelleği içermez. Üç yol:
+
+**A. Mevcut proje klasörünün üzerine (önerilen; zamanlanmış görev aynen çalışır)**
+1. Zamanlanmış görev çalışmıyorken ZIP'teki `UA_GES_Tahmin` klasörünün içeriğini mevcut proje klasörünün üzerine açın.
+2. `TASIMA.bat`: `data\` `outputs\` `logs\` klasörlerini yeni yerlerine taşır (aynı disk içinde yeniden adlandırma), eski
+   `config.json` ve kod kalıntılarını `_tasima_yedek\` altına alır. Geri almak için `python tools\migrate_to_countries.py --geri-al`.
+   TASIMA çalıştırılmadan `CALISTIR.bat` başlatılırsa program eski klasörleri görüp durur (verinin ikiye bölünmemesi için).
+3. `python tests\golden\run_golden.py` → `SONUC: OZDES`, sonra `CALISTIR.bat`.
+
+**B. Yeni bir klasöre + eski projeden veri kopyalama**
+1. ZIP'i istediğiniz yere açın.
+2. `python tools\migrate_to_countries.py --kaynak "D:\EnergyPortal\UA_GES_Tahmin"`: eski projenin deposunu, çıktılarını ve hava
+   önbelleğini (~350 MB) yeni yapıya **kopyalar**; eski klasör olduğu gibi kalır.
+3. `python tests\golden\run_golden.py`, sonra `CALISTIR.bat`. Zamanlanmış görev hâlâ eski klasörü çağırır; yeni klasöre almak için görevi
+   yeni `guncelle.bat` yoluyla yeniden oluşturun.
+
+**C. Yeni bir klasöre, eski proje olmadan (temiz kurulum)**
+1. ZIP'i açın, `CALISTIR.bat`. İlk çalışmada başlangıç verisi kopyalanır, GPEE deposu bugüne kadar güncellenir, hava verisi indirilir
+   (internet gerekir, 5–10 dk). 7 günlük tahmin, ufka göre kalibrasyon (son 75 gün) ve uzun vade hemen çalışır.
+2. `python -m uages optimize` (aylık bakım) tam Previous Runs arşivi ister: bir kez `python tools\fetch_optim_data.py` (~2 saat).
+   Altın test de hava önbelleği ister; bu yolda önbellek dolana kadar çalışmaz.
+
+`outputs\dashboard.html` için bir kısayolunuz varsa `countries\UA\outputs\dashboard.html` olarak güncelleyin.
 
 ## Modüller (`uages/`)
 | Modül | Görev | Değiştirilebilir |

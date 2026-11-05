@@ -1,10 +1,12 @@
 __pycache__/
 *.pyc
-# veri ve uretilen dosyalar (eski ve yeni yapi)
-data/
-outputs/
-logs/
-cache/
+# eski (tek ulke) yapidan kalanlar ve ortak hava onbellegi
+/data/
+/outputs/
+/logs/
+/cache/
+/config.json
+# ulke veri/cikti klasorleri (girdi xlsx ve seed/ izlenir)
 countries/*/data/cache/
 countries/*/data/store/
 countries/*/outputs/

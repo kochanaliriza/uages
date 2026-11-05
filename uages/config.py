@@ -16,6 +16,7 @@ from __future__ import annotations
 import copy
 import json
 import os
+import shutil
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -53,6 +54,30 @@ def activate(code: str | None = None, mkdir: bool = True) -> str:
 
 
 activate(mkdir=False)
+
+
+def eski_duzen() -> list[str]:
+    """Kokte eski (tek ulke) yapidan kalan veri klasorleri. Doluysa once tools/migrate_to_countries.py calismali."""
+    return [n for n in ["data/input", "data/store", "data/cache", "outputs"] if (ROOT / n).exists()]
+
+
+def tohumla() -> list[str]:
+    """countries/<KOD>/data/seed/{store,outputs}/ altindaki baslangic dosyalarini, hedefte YOKSA kopyalar
+    (yeni klasore kurulumda hedef deposu ve mevsim egrisi hazir gelsin). Var olan dosyaya asla dokunmaz."""
+    seed = PATHS["country"] / "data" / "seed"
+    kopyalanan = []
+    for sub, dst in [("store", PATHS["store"]), ("outputs", PATHS["out"])]:
+        for f in sorted((seed / sub).glob("*")) if (seed / sub).exists() else []:
+            t = dst / f.name
+            if f.is_file() and not t.exists():
+                dst.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(f, t)
+                kopyalanan.append(f"{sub}/{f.name}")
+    return kopyalanan
+
+
+def eksik_girdiler(cfg: dict) -> list[Path]:
+    return [inp(cfg, k) for k in cfg.get("inputs", {}) if not k.startswith("_") and not inp(cfg, k).exists()]
 
 
 def _deep_merge(base: dict, over: dict) -> dict:

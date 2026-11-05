@@ -21,7 +21,7 @@ import traceback
 import pandas as pd
 
 from . import analysis, forecast, longterm
-from .config import ACTIVE, PATHS, csv_kw, load_config, rnd  # noqa: F401  (csv_kw: dashboard buradan da alir)
+from .config import ACTIVE, PATHS, csv_kw, eksik_girdiler, eski_duzen, load_config, rnd, tohumla  # noqa: F401  (csv_kw: dashboard buradan da alir)
 from .countries import get_adapter
 
 
@@ -151,6 +151,20 @@ def main(argv=None):
         print(f"HATA: {e}")
         sys.exit(2)
     print(f"Ulke: {ACTIVE['code']}  ({PATHS['country']})")
+    eski = eski_duzen()
+    if eski:
+        print(f"HATA: eski klasor yapisi bulundu ({', '.join(eski)}). Once TASIMA.bat ile verileri countries\\{ACTIVE['code']}\\ "
+              "altina tasiyin (python tools/migrate_to_countries.py). Aksi halde yeni yapi bos depoyla calisir.")
+        sys.exit(2)
+    t = tohumla()
+    if t:
+        print(f"  Baslangic dosyalari kopyalandi (yeni kurulum): {', '.join(t)}")
+    eksik = eksik_girdiler(cfg)
+    if eksik:
+        print("HATA: girdi dosyalari bulunamadi:\n  " + "\n  ".join(str(e) for e in eksik)
+              + f"\nBu dosyalar countries\\{ACTIVE['code']}\\data\\input\\ altinda olmali. Eski proje klasorunuz varsa: "
+              "python tools/migrate_to_countries.py --kaynak <eski klasor>")
+        sys.exit(2)
     t0 = time.time()
     try:
         if a.komut == "update":

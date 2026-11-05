@@ -1,9 +1,12 @@
-"""Eski klasor yapisini (tek ulke) yeni yapiya (countries/UA + ortak cache/) tasir. Bir kez calistirilir.
+r"""Eski klasor yapisini (tek ulke) yeni yapiya (countries/UA + ortak cache/) tasir. Bir kez calistirilir.
 
   python tools/migrate_to_countries.py            # tasir (once ne yapacagini listeler, onay ister)
   python tools/migrate_to_countries.py --evet     # onay sormadan
   python tools/migrate_to_countries.py --kuru     # yalnizca listeler, hicbir sey yapmaz
   python tools/migrate_to_countries.py --geri-al  # son tasimayi geri alir (tasima_kaydi.json'a gore)
+  python tools/migrate_to_countries.py --kaynak "D:\EnergyPortal\UA_GES_Tahmin"
+                                                  # YENI bir klasore acildiysa: eski proje klasorundeki veriyi
+                                                  # buraya KOPYALAR (eski klasor oldugu gibi kalir)
 
 Eski -> yeni:
   data/input/                -> countries/UA/data/input/
@@ -17,8 +20,9 @@ Eski -> yeni:
                                 yeni dosyaya islenir, eski dosya yedege alinir
   uages/gpee.py, uages/inputs.py (eski kod kalintilari) -> yedege alinir
 
-Tasima ayni disk icinde yeniden adlandirmadir (veri kopyalanmaz, hizlidir). Hedefte ayni adli dosya varsa uzerine
-yazilmaz; atlanir ve listelenir. Yedek/kayit klasoru: _tasima_yedek/<zaman>/.
+Yerinde tasima ayni disk icinde yeniden adlandirmadir (veri kopyalanmaz, hizlidir). Hedefte ayni adli dosya varsa
+(pakette gelen girdi xlsx'leri) sizin dosyaniz kullanilir, paketinki yedege alinir. --kaynak ile kopyalamada eski projenin verisi esastir: paketle gelen baslangic
+dosyalarinin (seed) uzerine yazilir. Yedek/kayit klasoru: _tasima_yedek/<zaman>/.
 """
 from __future__ import annotations
 
@@ -35,10 +39,10 @@ YEDEK = ROOT / "_tasima_yedek"
 YENI_ANAHTARLAR = {"country", "optimize"}
 
 
-def plan() -> list[tuple[Path, Path]]:
-    """(kaynak, hedef) dosya/klasor tasima listesi."""
+def plan(src_root: Path = ROOT) -> list[tuple[Path, Path]]:
+    """(kaynak, hedef) dosya/klasor tasima listesi. src_root: eski yapidaki proje (varsayilan: bu klasor)."""
     p: list[tuple[Path, Path]] = []
-    d = ROOT / "data"
+    d = src_root / "data"
     for sub in ["input", "store"]:
         if (d / sub).exists():
             p.append((d / sub, UA / "data" / sub))
@@ -51,31 +55,41 @@ def plan() -> list[tuple[Path, Path]]:
             if f.name not in ("openmeteo", "pvgis"):
                 p.append((f, UA / "data" / "cache" / f.name))
     for sub in ["outputs", "logs"]:
-        if (ROOT / sub).exists():
-            p.append((ROOT / sub, UA / sub))
+        if (src_root / sub).exists():
+            p.append((src_root / sub, UA / sub))
     return p
 
 
-def tasi(src: Path, dst: Path, kayit: list, atlanan: list) -> None:
-    """Klasoru tasir; hedef varsa icerigi dosya dosya birlestirir (uzerine yazmaz)."""
-    if not dst.exists():
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        src.rename(dst)
-        kayit.append([str(src), str(dst)])
-        return
-    if src.is_file():
-        atlanan.append(str(dst))
-        return
-    for f in sorted(src.rglob("*")):
-        if f.is_dir():
-            continue
-        t = dst / f.relative_to(src)
-        if t.exists():
-            atlanan.append(str(t))
-            continue
+def kopyala(src: Path, dst: Path, kayit: list) -> int:
+    """Dosya/klasoru kopyalar; hedefteki ayni adli dosyalarin uzerine yazar. Donus: uzerine yazilan dosya sayisi."""
+    files = [src] if src.is_file() else [f for f in sorted(src.rglob("*")) if f.is_file()]
+    ezilen = 0
+    for f in files:
+        t = dst if src.is_file() else dst / f.relative_to(src)
+        ezilen += t.exists()
         t.parent.mkdir(parents=True, exist_ok=True)
-        f.rename(t)
-        kayit.append([str(f), str(t)])
+        shutil.copy2(f, t)
+    kayit.append([str(src), str(dst), len(files)])
+    return ezilen
+
+
+def tasi(src: Path, dst: Path, kayit: list, atlanan: list, yedek: Path) -> None:
+    """Klasoru/dosyayi tasir. Hedefte ayni adli dosya varsa (pakette gelen girdi xlsx gibi) SIZIN dosyaniz kazanir:
+    hedefteki dosya yedek/paket_dosyalari/ altina alinir, sizinki yerine konur. Her hareket kayda yazilir (--geri-al)."""
+    def hareket(x: Path, y: Path) -> None:
+        y.parent.mkdir(parents=True, exist_ok=True)
+        x.rename(y)
+        kayit.append([str(x), str(y)])
+
+    if not dst.exists():
+        hareket(src, dst)
+        return
+    files = [(src, dst)] if src.is_file() else [(f, dst / f.relative_to(src)) for f in sorted(src.rglob("*")) if f.is_file()]
+    for f, t in files:
+        if t.exists():
+            hareket(t, yedek / "paket_dosyalari" / t.relative_to(ROOT))
+            atlanan.append(str(t.relative_to(ROOT)))
+        hareket(f, t)
 
 
 def bos_klasorleri_sil(d: Path) -> None:
@@ -88,8 +102,8 @@ def bos_klasorleri_sil(d: Path) -> None:
         d.rmdir()
 
 
-def config_birlestir(yedek: Path, notlar: list) -> None:
-    eski_fp, yeni_fp = ROOT / "config.json", UA / "config.json"
+def config_birlestir(yedek: Path, notlar: list, src_root: Path = ROOT) -> None:
+    eski_fp, yeni_fp = src_root / "config.json", UA / "config.json"
     if not eski_fp.exists():
         return
     eski = json.loads(eski_fp.read_text(encoding="utf-8"))
@@ -113,7 +127,10 @@ def config_birlestir(yedek: Path, notlar: list) -> None:
         notlar.append("config.json: sizin degerleriniz yeni dosyaya islendi:\n    " + "\n    ".join(farklar))
     else:
         notlar.append("config.json: degisiklik yok (paketteki ayarlarla ayni)")
-    eski_fp.rename(yedek / "config_eski_kok.json")
+    if src_root == ROOT:
+        eski_fp.rename(yedek / "config_eski_kok.json")
+    else:
+        shutil.copy2(eski_fp, yedek / "config_eski_kaynak.json")
 
 
 def kalintilari_yedekle(yedek: Path, kayit: list) -> None:
@@ -161,14 +178,49 @@ def geri_al() -> None:
     print(f"Geri alindi ({len(k['tasinan'])} tasima). Eski kodu da geri istiyorsaniz eski proje kopyanizi geri yukleyin.")
 
 
+def kaynaktan_kopyala(src_root: Path, a) -> None:
+    if not (src_root / "data").exists() and not (src_root / "outputs").exists():
+        sys.exit(f"HATA: {src_root} eski yapida bir proje degil (data\\ ya da outputs\\ yok).")
+    if src_root == ROOT:
+        sys.exit("HATA: --kaynak bu klasorun kendisi; yerinde tasima icin --kaynak vermeyin.")
+    p = plan(src_root)
+    print(f"Kaynak: {src_root}\nKopyalanacaklar (eski klasor degismez):")
+    for s, d in p:
+        print(f"  {s}  ->  {d.relative_to(ROOT)}")
+    if (src_root / "config.json").exists():
+        print("  config.json  ->  countries/UA/config.json ile birlestirilir")
+    if a.kuru:
+        return
+    if not a.evet and input("Devam edilsin mi? [e/h] ").strip().lower() not in ("e", "evet", "y", "yes"):
+        print("Iptal edildi.")
+        return
+    yedek = YEDEK / datetime.now().strftime("%Y%m%d_%H%M%S")
+    yedek.mkdir(parents=True)
+    kayit, notlar, ezilen = [], [], 0
+    for s, d in p:
+        ezilen += kopyala(s, d, kayit)
+    config_birlestir(yedek, notlar, src_root)
+    (yedek / "kopyalama_kaydi.json").write_text(json.dumps({"kaynak": str(src_root), "kopyalanan": kayit},
+                                                           ensure_ascii=False, indent=1), encoding="utf-8")
+    for n in notlar:
+        print("  " + n)
+    print(f"Kopyalama tamam: {sum(k[2] for k in kayit)} dosya ({ezilen} tanesi paketle gelen baslangic dosyasinin yerine).")
+    kontrol()
+    print("Dogrulama icin (2-3 dk): python tests/golden/run_golden.py")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--kuru", action="store_true")
     ap.add_argument("--evet", action="store_true")
     ap.add_argument("--geri-al", action="store_true")
+    ap.add_argument("--kaynak", default=None, help="eski yapidaki proje klasoru (veri buraya kopyalanir)")
     a = ap.parse_args()
     if a.geri_al:
         geri_al()
+        return
+    if a.kaynak:
+        kaynaktan_kopyala(Path(a.kaynak).resolve(), a)
         return
     p = plan()
     kok_cfg = (ROOT / "config.json").exists()
@@ -191,7 +243,7 @@ def main() -> None:
     kayit, atlanan, notlar = [], [], []
     try:
         for s, d in p:
-            tasi(s, d, kayit, atlanan)
+            tasi(s, d, kayit, atlanan, yedek)
         config_birlestir(yedek, notlar)
         kalintilari_yedekle(yedek, kayit)
     finally:
@@ -201,7 +253,8 @@ def main() -> None:
     for n in notlar:
         print("  " + n)
     if atlanan:
-        print(f"  UYARI: hedefte zaten olan {len(atlanan)} dosya atlandi (kaynakta duruyor), ilk 5: {atlanan[:5]}")
+        print(f"  Not: {len(atlanan)} dosya pakette de vardi; sizin dosyaniz kullanildi, paketinki yedege alindi "
+              f"({', '.join(Path(x).name for x in atlanan[:5])}{' ...' if len(atlanan) > 5 else ''})")
     print(f"Tasima tamam: {len(kayit)} oge. Kayit: {(yedek / 'tasima_kaydi.json').relative_to(ROOT)}")
     kontrol()
     print("Dogrulama icin (2-3 dk): python tests/golden/run_golden.py")
