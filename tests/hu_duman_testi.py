@@ -153,8 +153,8 @@ def main() -> None:
     istekler = {"entsoe": 0, "openmeteo": 0, "pvgis": 0}
 
     class R:
-        def __init__(self, body, js=None):
-            self.status_code, self._js = 200, js
+        def __init__(self, body, js=None, kod=200):
+            self.status_code, self._js = kod, js
             self.content = body if body is not None else json.dumps(js).encode()
             self.text = self.content.decode("utf-8", "replace")
 
@@ -162,7 +162,8 @@ def main() -> None:
             return self._js if self._js is not None else json.loads(self.content)
 
         def raise_for_status(self):
-            pass
+            if self.status_code >= 400:
+                raise requests.HTTPError(f"{self.status_code} Client Error: Bad Request (sahte sunucu)")
 
     def fake_get(url, params=None, timeout=None, **k):
         if "entsoe" in url:
@@ -170,6 +171,11 @@ def main() -> None:
             return R(entsoe(params))
         if "open-meteo" in url:
             istekler["openmeteo"] += 1
+            # gercek servis gibi: arsiv uclari gelecek bitis tarihini reddeder
+            if ("archive" in url or "historical-forecast" in url) and "end_date" in (params or {}):
+                if pd.Timestamp(params["end_date"]) > FROZEN.normalize():
+                    istekler["reddedilen"] = istekler.get("reddedilen", 0) + 1
+                    return R(None, {"error": True, "reason": "end_date out of range"}, kod=400)
             return R(None, openmeteo(url, params))
         if "jrc.ec.europa" in url:
             istekler["pvgis"] += 1

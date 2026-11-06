@@ -63,7 +63,10 @@ def build_history(cfg: dict, verbose: bool = True) -> dict:
     start = pd.Timestamp(cfg["history"]["start"])
     # Depo daha eski yillari da icerebilir (tools/backfill_gpee.py); analiz donemi config'ten gelir
     g = g[g["time_local"] >= start].reset_index(drop=True)
-    end = g["time_utc"].max().normalize()
+    # Bitis: deponun son gunu, ama en gec dun (UTC). Depo yarinin resmi tahminini de tasiyabilir (HU: MAVIR D+1/D+2);
+    # Open-Meteo arsivi gelecek tarihi reddeder (400). UA'da GPEE gec yayimladigi icin bu sinir hic devreye girmez.
+    dun = pd.Timestamp.now("UTC").tz_localize(None).normalize() - pd.Timedelta(days=1)
+    end = min(g["time_utc"].max().normalize(), dun)
     wx = weather.history_weather(regions, start, end, cfg, verbose=verbose)
 
     runs = {}
