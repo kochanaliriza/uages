@@ -152,49 +152,6 @@ SAPMALAR = {"sapma_d1_mw": "Gerçekleşen − D-1 tahminimiz", "sapma_gun_ici_mw
             "sapma_kiyas_mw": "Gerçekleşen − resmi D+1 tahmini", "revizyon_mw": "Gün içi − D-1 tahminimiz (revizyon)"}
 
 
-URETIM = {"gerceklesen_mw": "Gerçekleşen üretim", "d1_tahmin_mw": "D-1 tahminimiz (kısıtsız potansiyel)",
-          "kiyas_tahmin_mw": "Resmi D+1 tahmini"}
-
-
-def uretim_fiyat(h: pd.DataFrame, daily: pd.DataFrame) -> dict:
-    """Genel gunes uretim seviyesi ile gunduz fiyati. Ham saatlik korelasyon gunluk dongu nedeniyle yaniltici olabilir;
-    asil olcut ayni yerel saatin gunler arasi korelasyonu (saat bazinda) ve gunluk toplam / ortalama."""
-    gunduz = h[h["elev"] > 0]
-    rows = []
-    for c, lab in URETIM.items():
-        rows.append({"seviye": "saatlik (gündüz, ham)", "uretim": lab, **_corr(gunduz[c], gunduz["smf"])})
-        rows.append({"seviye": "saatlik (gündüz, anomali)", "uretim": lab,
-                     **_corr(gunduz[c] - gunduz.groupby(gunduz["time_local"].dt.hour)[c].transform("mean"), gunduz["smf_anomali"])})
-        dc = c.replace("_mw", "_mwh")
-        rows.append({"seviye": "günlük (gündüz toplam MWh ~ gündüz ort. fiyat)", "uretim": lab, **_corr(daily[dc], daily["smf_gunduz_ort"])})
-        rows.append({"seviye": "günlük (gündüz toplam MWh ~ gün ort. fiyat)", "uretim": lab, **_corr(daily[dc], daily["smf_gun_ort"])})
-    ozet = pd.DataFrame(rows)
-    # Saat bazinda: her yerel saat icin gunler arasi korelasyon + egim (fiyat birimi / 100 MW)
-    sb = []
-    for hr, g in gunduz.groupby(gunduz["time_local"].dt.hour):
-        x, y = g["gerceklesen_mw"], g["smf"]
-        rec = {"saat": f"{hr:02d}:00", "ort_uretim_mw": x.mean(), "ort_smf": y.mean()}
-        for c, k in [("gerceklesen_mw", "gerceklesen"), ("d1_tahmin_mw", "d1")]:
-            r = _corr(g[c], y)
-            rec[f"r_{k}"], rec[f"n_{k}"] = r["pearson"], r["n"]
-        m = x.notna() & y.notna()
-        rec["egim_smf_per_100mw"] = float(np.polyfit(x[m], y[m], 1)[0] * 100) if m.sum() >= 10 and x[m].std() > 0 else np.nan
-        sb.append(rec)
-    saat = pd.DataFrame(sb)
-    saat = saat[saat["n_gerceklesen"] >= 10]
-    # Gunluk uretim dilimleri -> ortalama gunduz fiyati
-    dil = []
-    for c, lab in [("gerceklesen_mwh", "Gerçekleşen"), ("d1_tahmin_mwh", "D-1 tahminimiz")]:
-        x = daily[[c, "smf_gunduz_ort", "smf_gun_ort"]].dropna()
-        if len(x) < 10:
-            continue
-        for k, grp in x.groupby(pd.qcut(x[c], 5, duplicates="drop"), observed=True):
-            dil.append({"uretim": lab, "gunluk_dilim_gwh": f"{k.left / 1000:.1f} … {k.right / 1000:.1f}", "gun": len(grp),
-                        "ort_uretim_gwh": grp[c].mean() / 1000, "ort_smf_gunduz": grp["smf_gunduz_ort"].mean(),
-                        "ort_smf_gun": grp["smf_gun_ort"].mean()})
-    return {"ozet": ozet, "saat": saat, "dilim": pd.DataFrame(dil)}
-
-
 def analyse(h: pd.DataFrame, price: pd.DataFrame | None) -> dict:
     h = h.copy()
     h["sapma_d1_mw"] = h["gerceklesen_mw"] - h["d1_tahmin_mw"]
@@ -243,9 +200,7 @@ def analyse(h: pd.DataFrame, price: pd.DataFrame | None) -> dict:
     common = m & np.isfinite(gunduz[["d1_tahmin_mw", "gun_ici_tahmin_mw", "kiyas_tahmin_mw"]].to_numpy(float)).all(axis=1)
     for c, lab in [("d1_tahmin_mw", "D-1 tahminimiz"), ("gun_ici_tahmin_mw", "Gün içi tahminimiz"), ("kiyas_tahmin_mw", "Resmi D+1 tahmini")]:
         isabet.append({"tahmin": lab, **metrics(gunduz[c].to_numpy(float), A, common)})
-    uf = uretim_fiyat(h, daily) if price is not None else None
-    return {"hourly": h, "daily": daily.reset_index(), "ozet": ozet, "dilim": pd.DataFrame(dil), "isabet": pd.DataFrame(isabet),
-            "uretim": uf}
+    return {"hourly": h, "daily": daily.reset_index(), "ozet": ozet, "dilim": pd.DataFrame(dil), "isabet": pd.DataFrame(isabet)}
 
 
 def _md_table(df: pd.DataFrame, nd: int = 2) -> str:
@@ -277,9 +232,6 @@ def run(cfg: dict, days: int | None = None, verbose: bool = False) -> dict:
     r["hourly"].pipe(rnd, 2).to_csv(out / "fiyat_analiz_saatlik.csv", index=False, **kw)
     r["daily"].pipe(rnd, 2).to_csv(out / "fiyat_analiz_gunluk.csv", index=False, **kw)
     r["ozet"].pipe(rnd, 3).to_csv(out / "fiyat_korelasyon_ozet.csv", index=False, **kw)
-    if r["uretim"] is not None:
-        r["uretim"]["ozet"].pipe(rnd, 3).to_csv(out / "fiyat_uretim_korelasyon.csv", index=False, **kw)
-        r["uretim"]["saat"].pipe(rnd, 3).to_csv(out / "fiyat_uretim_saat_bazinda.csv", index=False, **kw)
     d0, d1 = r["daily"]["date"].min(), r["daily"]["date"].max()
     md = [f"# Tahmin sapması / revizyonu ve fiyat ilişkisi\n",
           f"Dönem: {d0:%Y-%m-%d} … {d1:%Y-%m-%d} ({len(r['daily'])} gün) · gündüz saatleri (güneş yüksekliği > 0) · "
@@ -288,16 +240,7 @@ def run(cfg: dict, days: int | None = None, verbose: bool = False) -> dict:
           "İkisi de bugünkü ufka göre kalibrasyon kurallarıyla, yayın anında mevcut gerçekleşenle (gecikmeli) üretildi.\n",
           "\n## İsabet (gündüz, kısıtsız; nMAE paydası ort. gündüz gerçekleşen)\n", _md_table(r["isabet"], 2)]
     if price is not None:
-        u = r["uretim"]
-        gunler = r["daily"].dropna(subset=["smf_gunduz_ort"])
-        md += [f"\n## Güneş üretim seviyesi ve gündüz fiyatı\n",
-               f"Fiyat verisi olan gün: {len(gunler)} / {len(r['daily'])}. Saatlik ham korelasyon güneşin ve fiyatın gün içi döngüsünü "
-               "de içerir; asıl ölçüt **saat bazında** (aynı saatin günler arası) korelasyon ve günlük toplamdır. Gerçekleşen üretim "
-               "düşük fiyatta kısılabildiği için (ters nedensellik) D-1 tahminimiz kısıtsız potansiyel olarak ayrıca verildi.\n\n",
-               _md_table(u["ozet"], 3),
-               "\n### Saat bazında (her saat için günler arası; eğim = 100 MW fazla üretimde fiyat değişimi)\n", _md_table(u["saat"], 2),
-               "\n### Günlük üretim dilimlerine göre ortalama fiyat\n", _md_table(u["dilim"], 1)]
-        md += ["\n## Sapma korelasyonu\n",
+        md += ["\n## Korelasyon\n",
                "`smf_anomali` = fiyat − dönemdeki aynı saatin ortalaması (günlük fiyat profilini ayırır). "
                "`anlamli_95`: |r| > 1,96/√n (saatler otokorelasyonlu olduğundan iyimser bir eşik).\n\n", _md_table(r["ozet"], 3),
                "\n## Sapma dilimlerine göre ortalama fiyat (saatlik, gündüz)\n", _md_table(r["dilim"], 1)]

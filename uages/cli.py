@@ -150,10 +150,8 @@ def cmd_fiyat(cfg, days=None):
     print("[7] Tahmin sapmasi / revizyonu ve fiyat (SMF) korelasyonu")
     r = fiyat.run(cfg, days)
     print(r["isabet"].pipe(rnd, 2).to_string(index=False))
-    if r.get("uretim") is not None:
-        print("  Gunes uretimi ~ gunduz fiyati:")
-        print(r["uretim"]["ozet"].pipe(rnd, 3).to_string(index=False))
-        print(r["uretim"]["saat"].pipe(rnd, 2).to_string(index=False))
+    if len(r["ozet"]):
+        print(r["ozet"].pipe(rnd, 3).to_string(index=False))
     print("  yazildi: fiyat_analiz_saatlik.csv, fiyat_analiz_gunluk.csv, fiyat_korelasyon_ozet.csv, fiyat_korelasyon_raporu.md")
 
 
