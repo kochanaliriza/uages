@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+# eski (tek ulke) yapidan kalanlar ve ortak hava onbellegi
+/data/
+/outputs/
+/logs/
+/cache/
+/config.json
+# ulke veri/cikti klasorleri (girdi xlsx ve seed/ izlenir)
+countries/*/data/cache/
+countries/*/data/store/
+countries/*/outputs/
+countries/*/logs/
+tests/golden/_calisma/
+_tasima_yedek/
+entsoe_token.txt
+tests/_hu_duman/
