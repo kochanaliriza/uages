@@ -53,19 +53,18 @@ def yesterday() -> pd.Timestamp:
 
 
 def lead_weather(r, model: str, end: pd.Timestamp, start: pd.Timestamp | None = None,
-                 pr0: pd.Timestamp | None = None, leads=LEADS) -> pd.DataFrame:
+                 pr0: pd.Timestamp | None = None) -> pd.DataFrame:
     """Bir bolge ve model icin tum ufuklarin uzun tablosu. start=None -> pr0'dan (Previous Runs baslangici) ceyrek
     parcalarla (onbellek araci tools/fetch_optim_data.py ile ayni sinirlar); start verilirse tek istek (gunluk yenileme)."""
     spans = chunks(pr0, end, "QS") if start is None else [(start, end)]
-    parts = [om.previous_runs(r["lat"], r["lon"], s, e, model, leads=leads) for s, e in spans]
+    parts = [om.previous_runs(r["lat"], r["lon"], s, e, model) for s, e in spans]
     return pd.concat(parts, ignore_index=True).drop_duplicates(["time_utc", "lead"]).sort_values(["lead", "time_utc"])
 
 
 def build(cfg: dict, end: pd.Timestamp | None = None, verbose: bool = True,
-          start: pd.Timestamp | None = None, save: bool = True, leads=LEADS) -> pd.DataFrame:
+          start: pd.Timestamp | None = None, save: bool = True) -> pd.DataFrame:
     """start=None: tam tablo (Previous Runs baslangicindan), <ulke>/data/cache/egitim_ufuk.pkl'ye yazilir.
-    start verilirse yalnizca o donem (gunluk kalibrasyon yenilemesi icin, ~16 istek esdegeri x 32).
-    leads: ufuklar (varsayilan D+1..D+7; 0 = ayni gunun kosusu, fiyat.py gun ici analizi icin). 1 her zaman olmali."""
+    start verilirse yalnizca o donem (gunluk kalibrasyon yenilemesi icin, ~16 istek esdegeri x 32)."""
     end = end or yesterday()
     ad = get_adapter(cfg)
     regions = ad.load_regions(cfg)
@@ -76,10 +75,10 @@ def build(cfg: dict, end: pd.Timestamp | None = None, verbose: bool = True,
         if verbose:
             print(f"  Bolge {int(r['region'])}: Previous Runs {', '.join(models)}", flush=True)
         for m in models:
-            wx[m][int(r["region"])] = lead_weather(r, m, end, start, pr0, leads)
+            wx[m][int(r["region"])] = lead_weather(r, m, end, start, pr0)
 
     rows = []
-    for L in leads:
+    for L in LEADS:
         cols = {}
         frames_by_region = {}
         for m in models:

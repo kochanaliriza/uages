@@ -99,12 +99,6 @@
     "encoding": "utf-8-sig",
     "_not": "Excel (TR) uyumlu. Programatik kullanim icin sep=',' decimal='.' yapin."
   },
-  "fiyat": {
-    "gun": 50,
-    "dosya": "data/input/smf.xlsx",
-    "saat_etiketi": "baslangic",
-    "_not": "python -m uages fiyat [gun]: son N gun D-1 / gun ici tahmin sapmasi ve fiyat korelasyonu. Dosya: saatlik fiyat (yerel saat); tek tarih-saat sutunu ya da tarih + saat (0-23 / 1-24) + fiyat sutunu. .csv/.xls da olur (ayni ad). saat_etiketi='bitis': tarih-saat sutunu aralik sonu."
-  },
   "optimize": {
     "test_start": "2026-05-01",
     "lag_days": 2,

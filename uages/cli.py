@@ -6,7 +6,6 @@
   python -m uages longterm         # gelecek 12 ay (ERA5 + PVGIS karma)
   python -m uages range 2027-01-01 2027-03-31   # istenen donem icin saatlik tipik beklenti CSV
   python -m uages dashboard        # outputs/ klasorunden dashboard.html uretir
-  python -m uages fiyat [gun]      # son N gun (varsayilan 50): D-1 / gun ici tahmin sapmasi ve fiyat (SMF) korelasyonu
   python -m uages all --ulke UA    # ulke secimi (varsayilan UA; UAGES_ULKE ortam degiskeni de okunur)
 Cevrim disi (sadece onbellek): UAGES_OFFLINE=1
 Ciktilar: countries/<ULKE>/outputs/, gunluk/hata: countries/<ULKE>/logs/
@@ -145,16 +144,6 @@ def cmd_optimize(cfg, rebuild=False):
     return o
 
 
-def cmd_fiyat(cfg, days=None):
-    from . import fiyat
-    print("[7] Tahmin sapmasi / revizyonu ve fiyat (SMF) korelasyonu")
-    r = fiyat.run(cfg, days)
-    print(r["isabet"].pipe(rnd, 2).to_string(index=False))
-    if len(r["ozet"]):
-        print(r["ozet"].pipe(rnd, 3).to_string(index=False))
-    print("  yazildi: fiyat_analiz_saatlik.csv, fiyat_analiz_gunluk.csv, fiyat_korelasyon_ozet.csv, fiyat_korelasyon_raporu.md")
-
-
 def cmd_dashboard(cfg):
     from . import dashboard
     print("[5] Dashboard")
@@ -170,7 +159,7 @@ def main(argv=None):
         except Exception:  # noqa: BLE001
             pass
     ap = argparse.ArgumentParser(prog="uages", description="Ulke bazli GES uretim analizi ve tahmini (varsayilan: Ukrayna)")
-    ap.add_argument("komut", choices=["all", "update", "history", "forecast", "longterm", "range", "dashboard", "optimize", "fiyat"])
+    ap.add_argument("komut", choices=["all", "update", "history", "forecast", "longterm", "range", "dashboard", "optimize"])
     ap.add_argument("args", nargs="*")
     ap.add_argument("--config", default=None, help="ayar dosyasi (varsayilan countries/<ULKE>/config.json)")
     ap.add_argument("--ulke", default=None, help="ulke kodu (varsayilan UAGES_ULKE ya da UA)")
@@ -214,8 +203,6 @@ def main(argv=None):
             cmd_range(cfg, *a.args[:2])
         elif a.komut == "dashboard":
             cmd_dashboard(cfg)
-        elif a.komut == "fiyat":
-            cmd_fiyat(cfg, a.args[0] if a.args else None)
         elif a.komut == "optimize":
             cmd_optimize(cfg, rebuild="yeniden" in a.args)
         elif a.komut == "all":
