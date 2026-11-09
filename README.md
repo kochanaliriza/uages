@@ -174,6 +174,17 @@ Uzun vadede aylık k (2026 gözlenen; Eki–Ara için Mar/Şub/Oca simetrisi) ve
 - Çıktılar: `tahmin_gun_gecmisi.csv` (saatlik), `tahmin_gun_gecmisi_gunluk.csv` (günlük). Kod: `uages/revision.py`.
   Arşiv boşken (ilk gün) karşılaştırmalar boş kalır; çalıştırmalar biriktikçe dolar.
 
+## Tahmin sapması ve fiyat (SMF) korelasyonu (2026-11-09)
+`FIYAT_KORELASYON.bat` ya da `python -m uages fiyat [gün]` (varsayılan 50 gün, `fiyat.gun`). Son N gün için geriye dönük
+**D-1** (bir gün önceki model koşusu) ve **gün içi** (hedef günün kendi koşusu, Open-Meteo Previous Runs lead 0) tahminimizi
+üretir; gerçekleşen − D-1, gerçekleşen − gün içi, gerçekleşen − GPEE D+1 ve gün içi − D-1 (revizyon) farklarını fiyatla
+karşılaştırır: saatlik (gündüz) ve günlük Pearson/Spearman, ham fiyat ve fiyat anomalisi (aynı saatin dönem ortalamasından
+fark), sapma dilimlerine göre ortalama fiyat, üç tahminin isabeti.
+- **Fiyat dosyası:** `countries\UA\data\input\smf.xlsx` (ya da .csv). Saatlik, yerel (Kyiv) saat; tek tarih-saat sütunu ya da
+  tarih + saat (0–23 veya 1–24) + fiyat sütunu (adında smf/fiyat/price/ціна geçen; yoksa son sayısal sütun).
+- Çıktılar: `fiyat_korelasyon_raporu.md`, `fiyat_korelasyon_ozet.csv`, `fiyat_analiz_saatlik.csv`, `fiyat_analiz_gunluk.csv`.
+- İlk çalıştırmada ~125 günlük Previous Runs (lead 0+1) indirilir: 8 bölge × 4 model = 32 istek, birkaç dakika.
+
 ## Çıktılar (`countries/UA/outputs/`)
 `tahmin_7gun_saatlik.csv`, `tahmin_7gun_bolge_saatlik.csv`, `tahmin_7gun_gunluk.csv`, `gecmis_saatlik.csv`, `gecmis_gunluk.csv`,
 `gecmis_aylik.csv`, `hava_sinifi_performans.csv`, `sicaklik_performans.csv`, `tahmin_dogrulama.csv`, `kalibrasyon_aylik_k.csv`,

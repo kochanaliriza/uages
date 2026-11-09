@@ -147,8 +147,11 @@ def previous_runs(lat, lon, start, end, model: str, leads=range(1, 8)) -> pd.Dat
     """Ufka gore arsivlenmis tahmin (Previous Runs API). `<var>_previous_dayN` = N gun onceki model kosusunun
     o saat icin verdigi deger. Donus: uzun tablo [time_utc, lead, ghi, dni, dhi, temp, wind].
     Ruzgar yalnizca lead 1'den alinir ve tum ufuklara kopyalanir (Faiman'a etkisi kucuk, istek maliyetini dusurur).
-    Kapsam: ICON ve GFS 2024-01-19, ECMWF IFS025 2024-03-06'dan itibaren; ICON'da previous_day7 yok (NaN)."""
-    names = [f"{v}_previous_day{n}" for n in leads for v in LEAD_VARS] + ["wind_speed_10m_previous_day1"]
+    Kapsam: ICON ve GFS 2024-01-19, ECMWF IFS025 2024-03-06'dan itibaren; ICON'da previous_day7 yok (NaN).
+    lead 0 = ayni gunun kosusu (son eki olmayan degisken adi; gun ici tahmin vekili)."""
+    def nm(v, n):
+        return v if n == 0 else f"{v}_previous_day{n}"
+    names = [nm(v, n) for n in leads for v in LEAD_VARS] + ["wind_speed_10m_previous_day1"]
     p = _base(lat, lon) | {"start_date": str(start)[:10],
                            "end_date": (pd.Timestamp(end) + pd.Timedelta(days=1)).strftime("%Y-%m-%d"),
                            "hourly": ",".join(names)}
@@ -161,7 +164,7 @@ def previous_runs(lat, lon, start, end, model: str, leads=range(1, 8)) -> pd.Dat
     wind = pd.to_numeric(pd.Series(h.get("wind_speed_10m_previous_day1")), errors="coerce").to_numpy()
     frames = []
     for n in leads:
-        cols = {short: pd.to_numeric(pd.Series(h.get(f"{v}_previous_day{n}")), errors="coerce").to_numpy()
+        cols = {short: pd.to_numeric(pd.Series(h.get(nm(v, n))), errors="coerce").to_numpy()
                 for v, short in LEAD_VARS.items()}
         frames.append(pd.DataFrame(cols, index=t).assign(wind=wind, lead=n))
     df = pd.concat(frames).reset_index()
