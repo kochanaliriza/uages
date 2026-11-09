@@ -85,6 +85,9 @@ section.tab { display: grid; gap: 22px; }
 .up { color: var(--s3); font-weight: 600; }
 .down { color: var(--s2); font-weight: 600; }
 .flat { color: var(--ink-3); }
+.sel { font: 500 12.5px var(--f-body); color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 5px 8px; }
+#revTable tbody tr { cursor: pointer; }
+tr.on td { background: var(--accent-soft); }
 
 .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr)); gap: 10px; }
 .kpi { border-left: 3px solid var(--line); padding: 4px 0 4px 12px; display: grid; gap: 2px; }
@@ -167,10 +170,16 @@ details.weights-box summary { cursor: pointer; font-size: 12.5px; color: var(--i
         <label class="tog"><input type="checkbox" id="optBand" checked> P10–P90 bandı (ECMWF ensemble)</label>
         <label class="tog"><input type="checkbox" id="optSpread"> Modeller arası aralık</label>
         <label class="tog"><input type="checkbox" id="optActual" checked> Son günler: GPEE gerçekleşen ve GPEE tahmini</label>
-        <label class="tog" id="optPrevLab" hidden><input type="checkbox" id="optPrev" checked> <span id="optPrevTxt">Dünkü tahmin (≈24 sa önce)</span></label>
-        <label class="tog" id="optDayAheadLab" hidden><input type="checkbox" id="optDayAhead"> Gün öncesi tahminimiz (arşiv)</label>
+        <label class="tog" id="optIntraLab" hidden><input type="checkbox" id="optIntra" checked> Gün içi tahminimiz (o gün yapılan)</label>
+      </div>
+      <div class="controls" id="cmpBar" hidden>
+        <label class="tog">Gün içi tahmini şununla karşılaştır:
+          <select id="cmpSel" class="sel"></select></label>
+        <label class="tog">Gün seç: <input type="date" id="dayPick" class="sel"></label>
+        <button class="btn" id="dayClear" hidden>14 günlük görünüme dön</button>
       </div>
       <div class="chart tall"><canvas id="cFc" aria-label="7 gunluk saatlik uretim tahmini"></canvas></div>
+      <div class="tbl" id="dayBox" hidden><table id="dayTable"></table></div>
       <details class="weights-box">
         <summary>Karma ağırlıklarını değiştir (güç düzeyinde yeniden karıştırır)</summary>
         <div class="weights" id="weights" style="margin-top:10px"></div>
@@ -178,10 +187,9 @@ details.weights-box summary { cursor: pointer; font-size: 12.5px; color: var(--i
       <p class="note" id="calNote"></p>
     </div>
     <div class="panel" id="revPanel" hidden>
-      <div class="panel-head"><div><h3>Tahmin revizyonu</h3><p class="sub" id="revSub"></p></div>
-        <div class="chips" id="revChips" role="group" aria-label="Karsilastirma"></div></div>
+      <div class="panel-head"><div><h3>Gün öncesi → gün içi tahmin değişimi</h3><p class="sub" id="revSub"></p></div></div>
       <div class="tbl"><table id="revTable"></table></div>
-      <p class="note">Aynı gün için bugünkü tahmin ile daha önce verilen tahminin farkı (P50, günlük toplam). Işınım ve bulut farkı değişimin hava tahmininden geldiğini gösterir; kalibrasyon katsayıları da çalıştırmalar arasında hafifçe değişebilir.</p>
+      <p class="note">Gün içi tahmin: hedef günün kendisinde yapılan son çalıştırma. D-1: bir gün önce yapılan son çalıştırma (ör. 9'unda 10'u için). Değişim = gün içi − D-k (P50, günlük toplam); fark büyük ölçüde güncellenen hava tahmininden gelir, kalibrasyon katsayıları da çalıştırmalar arasında hafifçe değişebilir. Bir satıra tıklayınca o gün grafikte açılır. Arşiv son 30 günü tutar.</p>
     </div>
     <div class="panel" id="son7Panel" hidden>
       <div class="panel-head"><div><h3>Son 7 gün isabeti</h3><p class="sub" id="son7Sub"></p></div></div>
@@ -403,48 +411,75 @@ function gpeeDaily() {
   FC.forEach(r => { const k = String(r.time_local).slice(0, 10), o = by[k] = by[k] || { s: 0, n: 0 }; if (r.gpee_tahmin_mw != null) { o.s += Math.max(0, r.gpee_tahmin_mw); o.n++; } });
   return by;
 }
-/* ---------- Tahmin revizyonu ----------
-   Ayni gun icin onceki calismanin tahmini (arsiv) ile bugunku tahmin. "dun" = ~24 sa onceki calisma, "onceki" = bir onceki calisma. */
-const REVD = rows(D.rev_daily);
-const REVH = (() => { const m = {}; rows(D.rev_hourly).forEach(r => m[r.time_utc] = r); return m; })();
-let revRef = "dun";
-const revFirst = k => { const r = REVD.find(x => x[k + "_yayin_utc"]); return r ? r[k + "_yayin_utc"] : null; };
-const hasRef = k => REVD.some(r => r[k + "_p50_mwh"] != null);
-const revByDate = () => { const m = {}; REVD.forEach(r => m[String(r.date).slice(0, 10)] = r); return m; };
+/* ---------- Gun ici / gun oncesi tahmin ----------
+   Hedef gun D icin ufuk L tahmini = yerel gun D-L'de yapilan son calisma (ufuk0 = gun ici, ufuk1 = D-1, ...). Veri: tahmin_gun_gecmisi*.csv */
+const DH = rows(D.day_hist), DD = rows(D.day_daily);
+const DHU = (() => { const m = {}; DH.forEach(r => m[r.time_utc] = r); return m; })();
+const DDD = (() => { const m = {}; DD.forEach(r => m[String(r.date).slice(0, 10)] = r); return m; })();
+let cmpK = 1, pickDay = null;
+const dayKey = s => String(s).slice(0, 10);
+const hasK = k => DD.some(r => r.ufuk0_mwh != null && r["ufuk" + k + "_mwh"] != null);
+const kLab = k => k === 1 ? "D-1 (bir gün önce yapılan)" : `D-${k} (${k} gün önce yapılan)`;
+const dayName = (s, now) => { const t = parseT(s), today = now && t.y === now.y && t.m === now.m && t.d === now.d; return `${today ? "Bugün" : GUN[t.date.getDay()]} ${t.d} ${AY[t.m - 1]}`; };
 function arrow(d, pct) {
   if (d == null || !isFinite(d)) return `<span class="flat">–</span>`;
   const cls = Math.abs(pct ?? 0) < 1 ? "flat" : d > 0 ? "up" : "down", a = cls === "flat" ? "≈" : d > 0 ? "▲" : "▼";
   return `<span class="${cls}">${a} ${d > 0 ? "+" : ""}${fmt(d / 1000, 2)} GWh${pct != null && isFinite(pct) ? ` (${pct > 0 ? "+" : ""}%${fmt(pct, 0)})` : ""}</span>`;
 }
-const signed = (v, d = 1) => v == null || !isFinite(v) ? "–" : `${v > 0 ? "+" : ""}${fmt(v, d)}`;
+const gwh = v => v == null ? "–" : fmt(v / 1000, 2);
+const errPct = (f, a) => (f == null || a == null || !(a > 0)) ? "–" : `${f >= a ? "+" : ""}%${fmt(100 * (f - a) / a, 0)}`;
+function setupCmp() {
+  if (!DD.length) return;
+  const ks = [1, 2, 3, 4, 5, 6, 7].filter(hasK);
+  if (!ks.includes(cmpK)) cmpK = ks[0] || 1;
+  $("#cmpSel").innerHTML = (ks.length ? ks : [1]).map(k => `<option value="${k}"${k === cmpK ? " selected" : ""}>${kLab(k)}</option>`).join("");
+  const days = DD.map(r => dayKey(r.date));
+  $("#dayPick").min = days[0]; $("#dayPick").max = days[days.length - 1];
+  $("#cmpSel").onchange = e => { cmpK = +e.target.value; renderRevision(); renderDays(); renderFcChart(); };
+  $("#dayPick").onchange = e => { pickDay = e.target.value || null; renderRevision(); renderFcChart(); };
+  $("#dayClear").onclick = () => { pickDay = null; $("#dayPick").value = ""; renderRevision(); renderFcChart(); };
+  $("#cmpBar").hidden = false; $("#optIntraLab").hidden = false;
+}
 function renderRevision() {
-  const refs = ["dun", "onceki"].filter(hasRef);
-  if (!REVD.length || !refs.length) { $("#revPanel").hidden = true; return; }
-  if (!refs.includes(revRef)) revRef = refs[0];
-  const lab = { dun: "≈24 saat önceki tahmin", onceki: "Bir önceki çalıştırma" };
-  $("#revChips").innerHTML = refs.map(k => `<button class="chip" data-k="${k}" aria-pressed="${k === revRef}">${lab[k]}</button>`).join("");
-  $("#revChips").onclick = e => { const b = e.target.closest("button"); if (!b) return; revRef = b.dataset.k; renderRevision(); renderDays(); renderFcChart(); };
-  $("#optPrevTxt").textContent = revRef === "dun" ? "Dünkü tahmin (≈24 sa önce)" : "Bir önceki çalıştırmanın tahmini";
-  const cur = REVD[0].guncel_yayin_utc, ref = revFirst(revRef);
-  $("#revSub").textContent = `Bugünkü tahmin (${kyivFromUtc(cur)} Kyiv) ile ${kyivFromUtc(ref)} Kyiv tahmininin karşılaştırması.`;
-  const k = revRef, now = kyivNow();
-  $("#revTable").innerHTML = `<thead><tr><th>Gün</th><th class="n">Güncel P50, GWh</th><th class="n">Önceki tahmin, GWh</th><th class="n">Değişim</th><th class="n">Işınım farkı, kWh/m²</th><th class="n">Bulut farkı, puan</th></tr></thead><tbody>` +
-    REVD.map(r => { const t = parseT(r.date), isToday = t.y === now.y && t.m === now.m && t.d === now.d;
-      return `<tr><td>${isToday ? "Bugün" : GUN[t.date.getDay()]} ${t.d} ${AY[t.m - 1]}</td><td class="n"><b>${fmt(r.guncel_p50_mwh / 1000, 2)}</b></td>` +
-        `<td class="n">${r[k + "_p50_mwh"] == null ? "–" : fmt(r[k + "_p50_mwh"] / 1000, 2)}</td><td class="n">${arrow(r[k + "_fark_mwh"], r[k + "_fark_pct"])}</td>` +
-        `<td class="n">${signed(r[k + "_ghi_fark_kwhm2"], 2)}</td><td class="n">${signed(r[k + "_bulut_fark"], 0)}</td></tr>`; }).join("") + "</tbody>";
+  const now = kyivNow(), R = DD.filter(r => r.ufuk0_mwh != null).reverse();
+  if (!R.length) { $("#revPanel").hidden = true; return; }
+  const k = cmpK;
+  $("#revSub").textContent = `Gün içi tahmin ile ${kLab(k)} tahminin farkı, son ${R.length} gün. Hata: gerçekleşene göre.`;
+  $("#revTable").innerHTML = `<thead><tr><th>Gün</th><th class="n">D-${k} tahmini, GWh</th><th class="n">Gün içi tahmin, GWh</th><th class="n">Değişim (gün içi − D-${k})</th><th class="n">Gerçekleşen, GWh</th><th class="n">D-${k} hatası</th><th class="n">Gün içi hatası</th><th class="n">GPEE tahmini, GWh</th></tr></thead><tbody>` +
+    R.map(r => `<tr data-d="${dayKey(r.date)}"${dayKey(r.date) === pickDay ? ' class="on"' : ""}><td>${dayName(r.date, now)}</td><td class="n">${gwh(r["ufuk" + k + "_mwh"])}</td><td class="n"><b>${gwh(r.ufuk0_mwh)}</b></td>` +
+      `<td class="n">${arrow(r["fark" + k + "_mwh"], r["fark" + k + "_pct"])}</td><td class="n">${gwh(r.gerceklesen_mwh)}</td>` +
+      `<td class="n">${errPct(r["ufuk" + k + "_mwh"], r.gerceklesen_mwh)}</td><td class="n">${errPct(r.ufuk0_mwh, r.gerceklesen_mwh)}</td><td class="n">${gwh(r.kiyas_tahmin_mwh)}</td></tr>`).join("") + "</tbody>";
+  $("#revTable").onclick = e => { const tr = e.target.closest("tr[data-d]"); if (!tr) return; pickDay = tr.dataset.d; $("#dayPick").value = pickDay; renderRevision(); renderFcChart(); $("#cFc").scrollIntoView({ behavior: "smooth", block: "center" }); };
   $("#revPanel").hidden = false;
 }
+/* Grafik ustunde gun basina degisim etiketi (gun ici - D-k) */
+const dayDelta = {
+  id: "dayDelta",
+  afterDatasetsDraw(ch, args, o) {
+    if (!o.items || !o.items.length) return;
+    const g = ch.ctx, a = ch.chartArea;
+    g.save(); g.textAlign = "center";
+    o.items.forEach(it => {
+      const x = ch.scales.x.getPixelForValue(it.i);
+      g.font = `600 11px ${css("--f-data")}`;
+      g.fillStyle = Math.abs(it.pct) < 1 ? css("--ink-3") : it.d > 0 ? css("--s3") : css("--s2");
+      g.fillText(`${Math.abs(it.pct) < 1 ? "≈" : it.d > 0 ? "▲" : "▼"} ${it.d > 0 ? "+" : ""}${fmt(it.d / 1000, 2)} GWh`, x, a.top + 26);
+      g.fillStyle = css("--ink-3"); g.font = `400 10px ${css("--f-data")}`;
+      g.fillText(`(${it.pct > 0 ? "+" : ""}%${fmt(it.pct, 0)})`, x, a.top + 39);
+    });
+    g.restore();
+  }
+};
 function renderDays() {
-  const ds = rows(D.fc_daily), now = kyivNow(), gp = gpeeDaily(), rv = revByDate();
+  const ds = rows(D.fc_daily), now = kyivNow(), gp = gpeeDaily();
   $("#days").innerHTML = ds.map(r => {
     const t = parseT(r.date), isToday = t.y === now.y && t.m === now.m && t.d === now.d;
     const ahead = (Date.UTC(t.y, t.m - 1, t.d) - Date.UTC(now.y, now.m - 1, now.d)) / 864e5;
     const g = gp[String(r.date).slice(0, 10)];
     const gpLine = g && g.n >= 20 ? `<div class="gp">GPEE tahmini <b>${fmt(g.s / 1000, 1)}</b> GWh</div>`
       : ahead <= 1 ? `<div class="gp none" title="GPEE gün öncesi tahminini henüz yayımlamadı (hafta sonu gecikebilir)">GPEE tahmini bekleniyor</div>` : "";
-    const v = rv[String(r.date).slice(0, 10)], prev = v && v[revRef + "_p50_mwh"];
-    const rvLine = prev != null ? `<div class="rv" title="${revRef === "dun" ? "≈24 saat önceki" : "Bir önceki"} tahmine göre (${kyivFromUtc(v[revRef + "_yayin_utc"])} Kyiv)">${revRef === "dun" ? "Dün" : "Önceki"} <b>${fmt(prev / 1000, 1)}</b> GWh<br>${arrow(v[revRef + "_fark_mwh"], v[revRef + "_fark_pct"])}</div>` : "";
+    const v = DDD[dayKey(r.date)], prev = isToday && v ? v["ufuk" + cmpK + "_mwh"] : null;
+    const rvLine = prev != null ? `<div class="rv" title="${kLab(cmpK)} tahmin (${kyivFromUtc(v["ufuk" + cmpK + "_yayin_utc"])} Kyiv) → gün içi">D-${cmpK} tahmini <b>${fmt(prev / 1000, 1)}</b> GWh<br>${arrow(v["fark" + cmpK + "_mwh"], v["fark" + cmpK + "_pct"])}</div>` : "";
     return `<div class="day${isToday ? " today" : ""}">
       <div class="d">${isToday ? "Bugün" : GUN[t.date.getDay()]} ${t.d} ${AY[t.m - 1]}</div>
       <div class="sky">${skyIcon(r.bulut_ort, r.ghi_kwhm2)}</div>
@@ -459,6 +494,8 @@ function renderDays() {
 function fcLabels() { return FC.map(r => { const t = parseT(r.time_local); return `${GUN[t.date.getDay()]} ${t.d}.${String(t.m).padStart(2, "0")} ${String(t.h).padStart(2, "0")}:00`; }); }
 function nowIndex() { const now = Date.now(); return FC.findIndex(r => utcMs(r.time_utc) + 3600e3 > now); }
 function renderFcChart() {
+  $("#dayClear").hidden = !pickDay; $("#dayBox").hidden = !pickDay;
+  if (pickDay) return renderDayChart();
   const labels = fcLabels();
   const p50 = seriesFor(curModel);
   const band = $("#optBand").checked && curModel === "blend", spread = $("#optSpread").checked, act = $("#optActual").checked;
@@ -472,15 +509,16 @@ function renderFcChart() {
     ds.push({ label: "Model min", data: FC.map(r => r.model_min_mw), borderWidth: 1, borderColor: css("--ink-3"), borderDash: [3, 3], pointRadius: 0, order: 4 });
   }
   ds.push({ label: `Tahmin P50 (${MODEL_NAMES[curModel]})`, data: p50, borderColor: css("--s1"), backgroundColor: css("--s1"), borderWidth: 2, pointRadius: 0, order: 1 });
-  const prevK = revRef;
-  if ($("#optPrev").checked && hasRef(prevK)) {
-    const ref = revFirst(prevK);
-    ds.push({ label: `${prevK === "dun" ? "Dünkü tahmin" : "Önceki tahmin"} (${kyivFromUtc(ref)})`, data: FC.map(r => (REVH[r.time_utc] || {})[prevK + "_p50_mw"] ?? null),
+  const deltas = [];
+  if (DH.length) {
+    const nowK = kyivNow(), todayKey = `${nowK.y}-${String(nowK.m).padStart(2, "0")}-${String(nowK.d).padStart(2, "0")}`;
+    if ($("#optIntra").checked)  // gecmis gunler: o gun yapilan son tahmin (bugun = bu calisma, ayrica cizilmez)
+      ds.push({ label: "Gün içi tahminimiz", data: FC.map(r => dayKey(r.time_local) < todayKey ? (DHU[r.time_utc] || {}).ufuk0_mw ?? null : null),
+        borderColor: css("--s5"), backgroundColor: css("--s5"), borderWidth: 1.5, pointRadius: 0, order: 1 });
+    ds.push({ label: `D-${cmpK} tahminimiz`, data: FC.map(r => (DHU[r.time_utc] || {})["ufuk" + cmpK + "_mw"] ?? null),
       borderColor: css("--s7"), backgroundColor: css("--s7"), borderWidth: 1.5, borderDash: [2, 2], pointRadius: 0, order: 1 });
-  }
-  if ($("#optDayAhead").checked && Object.values(REVH).some(r => r.gun_oncesi_p50_mw != null)) {
-    ds.push({ label: "Gün öncesi tahminimiz (arşiv)", data: FC.map(r => (REVH[r.time_utc] || {}).gun_oncesi_p50_mw ?? null),
-      borderColor: css("--s4"), backgroundColor: css("--s4"), borderWidth: 1.5, borderDash: [6, 3], pointRadius: 0, order: 1 });
+    FC.forEach((r, i) => { const t = parseT(r.time_local), v = DDD[dayKey(r.time_local)];
+      if (t.h === 12 && v && v["fark" + cmpK + "_mwh"] != null) deltas.push({ i, d: v["fark" + cmpK + "_mwh"], pct: v["fark" + cmpK + "_pct"] ?? 0 }); });
   }
   if (act && D.fc_hourly.gerceklesen_mw) {
     ds.push({ label: "GPEE gerçekleşen", data: FC.map(r => r.gerceklesen_mw), borderColor: css("--s2"), backgroundColor: css("--s2"), borderWidth: 2, pointRadius: 0, order: 0 });
@@ -491,13 +529,44 @@ function renderFcChart() {
   o.plugins.tooltip.filter = it => it.dataset.label !== "P90" && it.raw != null;
   o.plugins.tooltip.callbacks = { label: c => `${c.dataset.label === "P10–P90" ? "P10" : c.dataset.label}: ${fmt(c.raw)} MW` };
   o.plugins.nowLine = { index: nowIndex() };
+  o.plugins.dayDelta = { items: deltas };
   o.scales.x.ticks.autoSkip = false;
   const narrow = window.innerWidth < 720;
   o.scales.x.ticks.callback = (v, i) => { const t = parseT(FC[i].time_local); if (t.h === 0) return narrow ? (t.d % 2 ? String(t.d) : null) : `${GUN[t.date.getDay()]} ${t.d}`; return (!narrow && t.h === 12) ? "12:00" : null; };
   o.scales.x.grid = { display: true, color: ctx => { const i = ctx.index; return (FC[i] && parseT(FC[i].time_local).h === 0) ? css("--line") : "transparent"; } };
   o.scales.y.title = { display: true, text: "MW", color: css("--ink-3") };
   o.scales.y.min = 0;
-  mk("cFc", { type: "line", data: { labels, datasets: ds }, options: o, plugins: [nowLine] });
+  mk("cFc", { type: "line", data: { labels, datasets: ds }, options: o, plugins: [nowLine, dayDelta] });
+}
+/* Secilen gun: saatlik gerceklesen, resmi tahmin ve her ufuktaki tahminimiz + ozet tablo */
+function renderDayChart() {
+  const H = DH.filter(r => dayKey(r.time_local) === pickDay), v = DDD[pickDay] || {}, now = kyivNow();
+  if (!H.length) { mk("cFc", { type: "line", data: { labels: [], datasets: [] }, options: baseOpts() }); $("#dayTable").innerHTML = `<tbody><tr><td>Bu gün için arşivde veri yok (son 30 gün).</td></tr></tbody>`; return; }
+  const labels = H.map(r => `${String(parseT(r.time_local).h).padStart(2, "0")}:00`);
+  const ds = [];
+  if (H.some(r => r.gerceklesen_mw != null)) ds.push({ label: "GPEE gerçekleşen", data: H.map(r => r.gerceklesen_mw), borderColor: css("--s2"), backgroundColor: css("--s2"), borderWidth: 2.5, pointRadius: 0, order: 0 });
+  if (H.some(r => r.kiyas_tahmin_mw != null)) ds.push({ label: "GPEE tahmini", data: H.map(r => r.kiyas_tahmin_mw), borderColor: css("--s3"), backgroundColor: css("--s3"), borderWidth: 1.5, borderDash: [5, 3], pointRadius: 0, order: 2 });
+  for (let L = 0; L <= 7; L++) {
+    if (!H.some(r => r["ufuk" + L + "_mw"] != null)) continue;
+    const main = L === 0, sel = L === cmpK, c = main ? css("--s1") : sel ? css("--s7") : css("--ink-3");
+    ds.push({ label: main ? "Gün içi tahminimiz" : `D-${L} tahminimiz`, data: H.map(r => r["ufuk" + L + "_mw"]), hidden: !(main || sel),
+      borderColor: c, backgroundColor: c, borderWidth: main ? 2.5 : sel ? 2 : 1, borderDash: main ? [] : sel ? [2, 2] : [4, 4], pointRadius: 0, order: 1 });
+  }
+  const o = baseOpts();
+  o.plugins.tooltip.filter = it => it.raw != null;
+  o.plugins.tooltip.callbacks = { title: it => `${dayName(pickDay + " 00:00", now)} ${it[0].label}`, label: c => `${c.dataset.label}: ${fmt(c.raw)} MW` };
+  o.scales.y.title = { display: true, text: "MW", color: css("--ink-3") };
+  o.scales.y.min = 0;
+  mk("cFc", { type: "line", data: { labels, datasets: ds }, options: o });
+  const rowsT = [];
+  for (let L = 0; L <= 7; L++) {
+    const val = v["ufuk" + L + "_mwh"]; if (val == null) continue;
+    rowsT.push(`<tr${L === cmpK ? ' class="on"' : ""}><td>${L === 0 ? "<b>Gün içi</b>" : `D-${L}`}</td><td>${v["ufuk" + L + "_yayin_utc"] ? kyivFromUtc(v["ufuk" + L + "_yayin_utc"]) : "–"}</td><td class="n">${L === 0 ? `<b>${gwh(val)}</b>` : gwh(val)}</td>` +
+      `<td class="n">${L === 0 ? "" : arrow(v["fark" + L + "_mwh"], v["fark" + L + "_pct"])}</td><td class="n">${errPct(val, v.gerceklesen_mwh)}</td></tr>`);
+  }
+  $("#dayTable").innerHTML = `<thead><tr><th>${dayName(pickDay + " 00:00", now)}: tahmin</th><th>Yapıldığı zaman (Kyiv)</th><th class="n">P50, GWh</th><th class="n">Gün içi − bu tahmin</th><th class="n">Gerçekleşene göre hata</th></tr></thead><tbody>` +
+    rowsT.join("") + `<tr><td>GPEE tahmini</td><td></td><td class="n">${gwh(v.kiyas_tahmin_mwh)}</td><td></td><td class="n">${errPct(v.kiyas_tahmin_mwh, v.gerceklesen_mwh)}</td></tr>` +
+    `<tr><td>GPEE gerçekleşen</td><td></td><td class="n"><b>${gwh(v.gerceklesen_mwh)}</b></td><td></td><td></td></tr></tbody>`;
 }
 function renderModelChips() {
   const list = ["blend", ...MODELS, "custom"];
@@ -766,7 +835,7 @@ function show(id, push) {
 }
 window.addEventListener("hashchange", () => show((location.hash || "").slice(1), false));
 document.querySelector("nav.tabs").addEventListener("click", e => { const b = e.target.closest("button"); if (b) show(b.getAttribute("aria-controls"), true); });
-["optBand", "optSpread", "optActual", "optPrev", "optDayAhead"].forEach(id => $("#" + id).addEventListener("change", renderFcChart));
+["optBand", "optSpread", "optActual", "optIntra"].forEach(id => $("#" + id).addEventListener("change", renderFcChart));
 function rerenderAll() { Object.keys(rendered).forEach(k => { if (!$("#" + k).hidden) RENDER[k](); else rendered[k] = false; }); }
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", rerenderAll);
 new MutationObserver(rerenderAll).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
@@ -774,13 +843,13 @@ new MutationObserver(rerenderAll).observe(document.documentElement, { attributes
 function boot() {
   if (!D) { document.body.insertAdjacentHTML("afterbegin", "<p>Veri bulunamadı. <code>python -m uages all</code> çalıştırın.</p>"); return; }
   statusLine(); renderModelChips(); calNote(); renderRegChips();
-  $("#optPrevLab").hidden = !(hasRef("dun") || hasRef("onceki"));
-  $("#optDayAheadLab").hidden = !Object.values(REVH).some(r => r.gun_oncesi_p50_mw != null);
+  setupCmp();
   dlButtons("#dlFc", "toast1", [
     { label: "Saatlik filo tahmini", file: "tahmin_7gun_saatlik.csv", get obj() { return fcCustomObj(); } },
     { label: "Saatlik bölge tahmini + hava", file: "tahmin_7gun_bolge_saatlik.csv", obj: D.fc_regions },
     { label: "Günlük özet", file: "tahmin_7gun_gunluk.csv", obj: D.fc_daily },
-    { label: "Tahmin revizyonu (günlük)", file: "tahmin_revizyon_gunluk.csv", obj: D.rev_daily }
+    { label: "Gün içi / gün öncesi tahmin (günlük)", file: "tahmin_gun_gecmisi_gunluk.csv", obj: D.day_daily },
+    { label: "Gün geçmişi (saatlik, 30 gün)", file: "tahmin_gun_gecmisi.csv", obj: D.day_hist }
   ]);
   dlButtons("#dlHist", "toast2", [
     { label: "Günlük performans", file: "gecmis_gunluk.csv", obj: D.hist_daily },

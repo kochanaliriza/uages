@@ -41,6 +41,8 @@
   "forecast": {
     "days": 7,
     "past_days": 7,
+    "archive_days": 30,
+    "_archive_days_not": "outputs/arsiv altinda saklanan tahmin calismalari (revizyon ve tarih secici icin); daha eskiler her forecast calismasinda silinir.",
     "_past_days_not": "Panel grafiginde gosterilen gecmis gun sayisi (GPEE gerceklesen ile kiyas). Open-Meteo forecast API'si 92 gune kadar izin verir.",
     "model_weights": {
       "ecmwf_ifs025": 0.4,

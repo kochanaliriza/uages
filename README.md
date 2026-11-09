@@ -162,16 +162,17 @@ Model santral listesindeki tüm MWp'yi (5.269 MWp) kullanır; GPEE serisi yalnı
 - Panelde "Son 7 gün isabeti" tablosu yöntemleri ve GPEE'yi yan yana gösterir (`son7gun_isabet.csv`).
 Uzun vadede aylık k (2026 gözlenen; Eki–Ara için Mar/Şub/Oca simetrisi) ve sabit k_ref iki perspektif olarak verilir.
 
-## Son 7 gün görünümü ve tahmin revizyonu (2026-11-09)
-- **Grafik penceresi:** 7 günlük tahmin grafiği artık son 7 günü de gösterir (`forecast.past_days`: 3 → 7). Geçmiş günlerde
-  GPEE gerçekleşen ve GPEE tahmini ile birlikte, istenirse **"Gün öncesi tahminimiz (arşiv)"** çizgisi: her gün için o gün
-  başlamadan önce verilmiş son tahmin (gerçekten elimizde olan D+1 tahmini).
-- **Revizyon:** her `forecast` çalışması `outputs/arsiv/` altına saklanır; yeni tahmin arşive yazılmadan önce aynı günler için
-  **≈24 saat önceki tahmin** ve **bir önceki çalıştırma** ile karşılaştırılır. Panelde: gün kartlarında "Dün X GWh ▲/▼ fark",
-  grafikte "Dünkü tahmin" kesikli çizgisi, "Tahmin revizyonu" tablosunda günlük P50 farkı (GWh, %) ile ışınım ve bulut farkı
-  (değişimin hava tahmininden geldiğini gösterir). Çıktılar: `tahmin_revizyon_gunluk.csv`, `tahmin_revizyon_saatlik.csv`.
-- Arşiv boşsa (ilk çalışma ya da yeni klasör) revizyon bölümü görünmez; ikinci günden itibaren dolar. Zamanlanmış görev
-  3 saatte bir çalıştığı için "≈24 saat önceki" referans her zaman bulunur. Kod: `uages/revision.py`.
+## Son 7 gün, gün öncesi → gün içi tahmin değişimi, tarih seçici (2026-11-09)
+- **Grafik penceresi:** 7 günlük tahmin grafiği son 7 günü de gösterir (`forecast.past_days`: 3 → 7).
+- **Gün öncesi → gün içi:** her `forecast` çalışması `outputs/arsiv/` altına saklanır. Hedef gün D için *gün içi tahmin* = D günü
+  yapılan son çalıştırma, *D-1 tahmini* = bir gün önce yapılan son çalıştırma (ör. 9'unda 10'u için), D-2…D-7 benzer.
+  Panelde "Gün içi tahmini şununla karşılaştır" seçimi (D-1…D-7): grafikte D-k çizgisi ve her günün üstünde değişim
+  (gün içi − D-k, GWh ve %), "Gün öncesi → gün içi tahmin değişimi" tablosunda son 30 gün (gerçekleşen ve hatalarla birlikte).
+- **Tarih seçici:** "Gün seç" ile son 30 gün (ve tahmin penceresi) içinden bir gün açılır: saatlik gerçekleşen, GPEE tahmini,
+  gün içi ve D-1…D-7 tahminlerimiz, altında her tahminin yapıldığı saat, toplamı, gün içine göre farkı ve gerçekleşene göre hatası.
+- **Arşiv:** `forecast.archive_days` (30) günden eski dosyalar her çalışmada silinir.
+- Çıktılar: `tahmin_gun_gecmisi.csv` (saatlik), `tahmin_gun_gecmisi_gunluk.csv` (günlük). Kod: `uages/revision.py`.
+  Arşiv boşken (ilk gün) karşılaştırmalar boş kalır; çalıştırmalar biriktikçe dolar.
 
 ## Çıktılar (`countries/UA/outputs/`)
 `tahmin_7gun_saatlik.csv`, `tahmin_7gun_bolge_saatlik.csv`, `tahmin_7gun_gunluk.csv`, `gecmis_saatlik.csv`, `gecmis_gunluk.csv`,

@@ -79,23 +79,30 @@ def cmd_forecast(cfg):
     ad = get_adapter(cfg)
     regions = ad.load_regions(cfg)
     fc = forecast.build_forecast(cfg, st["calib"], regions, verbose=False)
-    forecast.attach_actuals(fc, ad.load_target(cfg))
+    target = ad.load_target(cfg)
+    forecast.attach_actuals(fc, target)
     # Revizyon: yeni tahmin arsive yazilmadan once arsivdeki onceki calismalarla karsilastirilir
     rev = None
     try:
         from . import revision
-        rev = revision.build(fc, cfg, csv_kw(cfg))
+        rev = revision.build(fc, cfg, csv_kw(cfg), target)
         revision.save(rev, csv_kw(cfg))
     except Exception as e:  # noqa: BLE001
         print(f"    UYARI: tahmin revizyonu hesaplanamadi ({e})")
     forecast.save_forecast(fc, csv_kw(cfg))
+    try:
+        from . import revision
+        revision.prune(cfg)
+    except Exception as e:  # noqa: BLE001
+        print(f"    UYARI: arsiv temizlenemedi ({e})")
     _save_state({"forecast_issued_utc": fc["issued_utc"], "forecast_calib_mode": fc["kalibrasyon_modu"]})
     print(f"    kalibrasyon modu: {fc['kalibrasyon_modu']}")
     print(fc["daily"].pipe(rnd, 1).to_string(index=False))
-    if rev is not None and rev["refs"].get("dun"):
+    if rev is not None:
         d = rev["daily"]
-        print(f"    revizyon (referans: {rev['refs']['dun']} UTC calismasi, P50 MWh):")
-        print(d[["date", "guncel_p50_mwh", "dun_p50_mwh", "dun_fark_mwh", "dun_fark_pct"]].pipe(rnd, 1).to_string(index=False))
+        d = d[d["date"] <= pd.Timestamp.now(cfg["local_tz"]).tz_localize(None).normalize()].tail(8)
+        print("    gun ici (ufuk0) - gun oncesi (ufuk1) tahmin, MWh:")
+        print(d[["date", "ufuk1_mwh", "ufuk0_mwh", "fark1_mwh", "fark1_pct", "gerceklesen_mwh"]].pipe(rnd, 1).to_string(index=False))
     return fc
 
 
