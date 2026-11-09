@@ -40,7 +40,8 @@
   },
   "forecast": {
     "days": 7,
-    "past_days": 3,
+    "past_days": 7,
+    "_past_days_not": "Panel grafiginde gosterilen gecmis gun sayisi (GPEE gerceklesen ile kiyas). Open-Meteo forecast API'si 92 gune kadar izin verir.",
     "model_weights": {
       "ecmwf_ifs025": 0.4,
       "icon_seamless": 0.25,

@@ -162,6 +162,17 @@ Model santral listesindeki tüm MWp'yi (5.269 MWp) kullanır; GPEE serisi yalnı
 - Panelde "Son 7 gün isabeti" tablosu yöntemleri ve GPEE'yi yan yana gösterir (`son7gun_isabet.csv`).
 Uzun vadede aylık k (2026 gözlenen; Eki–Ara için Mar/Şub/Oca simetrisi) ve sabit k_ref iki perspektif olarak verilir.
 
+## Son 7 gün görünümü ve tahmin revizyonu (2026-11-09)
+- **Grafik penceresi:** 7 günlük tahmin grafiği artık son 7 günü de gösterir (`forecast.past_days`: 3 → 7). Geçmiş günlerde
+  GPEE gerçekleşen ve GPEE tahmini ile birlikte, istenirse **"Gün öncesi tahminimiz (arşiv)"** çizgisi: her gün için o gün
+  başlamadan önce verilmiş son tahmin (gerçekten elimizde olan D+1 tahmini).
+- **Revizyon:** her `forecast` çalışması `outputs/arsiv/` altına saklanır; yeni tahmin arşive yazılmadan önce aynı günler için
+  **≈24 saat önceki tahmin** ve **bir önceki çalıştırma** ile karşılaştırılır. Panelde: gün kartlarında "Dün X GWh ▲/▼ fark",
+  grafikte "Dünkü tahmin" kesikli çizgisi, "Tahmin revizyonu" tablosunda günlük P50 farkı (GWh, %) ile ışınım ve bulut farkı
+  (değişimin hava tahmininden geldiğini gösterir). Çıktılar: `tahmin_revizyon_gunluk.csv`, `tahmin_revizyon_saatlik.csv`.
+- Arşiv boşsa (ilk çalışma ya da yeni klasör) revizyon bölümü görünmez; ikinci günden itibaren dolar. Zamanlanmış görev
+  3 saatte bir çalıştığı için "≈24 saat önceki" referans her zaman bulunur. Kod: `uages/revision.py`.
+
 ## Çıktılar (`countries/UA/outputs/`)
 `tahmin_7gun_saatlik.csv`, `tahmin_7gun_bolge_saatlik.csv`, `tahmin_7gun_gunluk.csv`, `gecmis_saatlik.csv`, `gecmis_gunluk.csv`,
 `gecmis_aylik.csv`, `hava_sinifi_performans.csv`, `sicaklik_performans.csv`, `tahmin_dogrulama.csv`, `kalibrasyon_aylik_k.csv`,

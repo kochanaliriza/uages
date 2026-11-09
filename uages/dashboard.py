@@ -61,6 +61,8 @@ def build(cfg: dict) -> Path:
     ltf = _read("uzun_vade_gelecek_aylar.csv", kw)
     pl = _read("santral_aylik_model.csv", kw)
     s7 = _read("son7gun_isabet.csv", kw)
+    rvd = _read("tahmin_revizyon_gunluk.csv", kw)
+    rvh = _read("tahmin_revizyon_saatlik.csv", kw)
 
     reg_sy = None
     if rm is not None:
@@ -89,6 +91,8 @@ def build(cfg: dict) -> Path:
         "fc_hourly": _records(fc_h),
         "fc_regions": _records(fc_r),
         "fc_daily": _records(fc_d),
+        "rev_daily": _records(rvd, nd=3),
+        "rev_hourly": _records(rvh, ["time_utc", "dun_p50_mw", "onceki_p50_mw", "gun_oncesi_p50_mw"]),
         "hist_daily": _records(hd, nd=3),
         "hist_monthly": _records(hm, nd=4),
         "weather_class": _records(wc, nd=4),

@@ -91,6 +91,12 @@ def kur(ad: str, kod_kaynagi: Path, liste: list[str]) -> tuple[Path, Path]:
         c = p / "countries" / "UA"
         c.mkdir(parents=True)
         shutil.copy2(kod_kaynagi / "countries" / "UA" / "config.json", c / "config.json")
+        # Grafik penceresi (forecast.past_days) canli ayarda 7 gune cikti; dondurulmus onbellek referansin
+        # istegiyle (3 gun) kayitli -> test kopyasinda referans degerine sabitlenir (hesap mantigi ayni)
+        ref_cfg = json.loads((HERE / "referans" / "config.json").read_text("utf-8"))
+        yc = json.loads((c / "config.json").read_text("utf-8"))
+        yc["forecast"]["past_days"] = ref_cfg["forecast"]["past_days"]
+        (c / "config.json").write_text(json.dumps(yc, ensure_ascii=False, indent=2), encoding="utf-8")
         data, out, wcache = c / "data", c / "outputs", p / "cache"
     else:
         shutil.copy2(kod_kaynagi / "config.json", p / "config.json")

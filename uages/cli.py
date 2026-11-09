@@ -80,10 +80,22 @@ def cmd_forecast(cfg):
     regions = ad.load_regions(cfg)
     fc = forecast.build_forecast(cfg, st["calib"], regions, verbose=False)
     forecast.attach_actuals(fc, ad.load_target(cfg))
+    # Revizyon: yeni tahmin arsive yazilmadan once arsivdeki onceki calismalarla karsilastirilir
+    rev = None
+    try:
+        from . import revision
+        rev = revision.build(fc, cfg, csv_kw(cfg))
+        revision.save(rev, csv_kw(cfg))
+    except Exception as e:  # noqa: BLE001
+        print(f"    UYARI: tahmin revizyonu hesaplanamadi ({e})")
     forecast.save_forecast(fc, csv_kw(cfg))
     _save_state({"forecast_issued_utc": fc["issued_utc"], "forecast_calib_mode": fc["kalibrasyon_modu"]})
     print(f"    kalibrasyon modu: {fc['kalibrasyon_modu']}")
     print(fc["daily"].pipe(rnd, 1).to_string(index=False))
+    if rev is not None and rev["refs"].get("dun"):
+        d = rev["daily"]
+        print(f"    revizyon (referans: {rev['refs']['dun']} UTC calismasi, P50 MWh):")
+        print(d[["date", "guncel_p50_mwh", "dun_p50_mwh", "dun_fark_mwh", "dun_fark_pct"]].pipe(rnd, 1).to_string(index=False))
     return fc
 
 
